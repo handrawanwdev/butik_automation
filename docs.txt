@@ -1,0 +1,6 @@
+# parallel 1 browser
+TARGET_URL="https://staging.antrisimatupang.com/register" MODE=sequential HEADLESS=true node run-batch-register.js
+
+
+# parallel 3 browser
+TARGET_URL="https://staging.antrisimatupang.com/register" MODE=parallel CONCURRENCY=3 HEADLESS=true node run-batch-register.js

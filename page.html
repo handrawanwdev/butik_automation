@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src=
+  "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    input[type="checkbox"].form-check-input {
+        width: 20px !important;
+        height: 20px !important;
+        border: 2px solid #000 !important;
+        box-shadow: none !important;
+    }
+
+    input[type="checkbox"].form-check-input:checked {
+        background-color: #379777 !important;
+        border-color: #379777 !important;
+    }
+
+    .eye-btn {
+        position: absolute;
+        right: 10px;
+        top: 38px;
+        background: transparent;
+        border: none;
+    }
+
+    .position-relative {
+        position: relative;
+    }
+
+    input[type="password"] {
+        font-family: 'text-security-disc', sans-serif;
+    }
+  </style>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.querySelector('form');
+        const check1 = document.getElementById('check');
+        const check2 = document.getElementById('check_2');
+        const errorCheck1 = document.getElementById('error-check');
+        const errorCheck2 = document.getElementById('error-check2');
+
+        form.addEventListener('submit', function(e) {
+            let valid = true;
+
+            // Reset tampilan error
+            errorCheck1.classList.add('d-none');
+            errorCheck2.classList.add('d-none');
+
+            // Cek checkbox pertama
+            if (!check1.checked) {
+                errorCheck1.classList.remove('d-none');
+                valid = false;
+            }
+
+            // Cek checkbox kedua
+            if (!check2.checked) {
+                errorCheck2.classList.remove('d-none');
+                valid = false;
+            }
+
+            // Batalkan submit jika ada checkbox yang belum dicentang
+            if (!valid) {
+                e.preventDefault();
+            }
+        });
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Validasi checkbox
+        const form = document.querySelector('form');
+        const check1 = document.getElementById('check');
+        const check2 = document.getElementById('check_2');
+        const errorCheck1 = document.getElementById('error-check');
+        const errorCheck2 = document.getElementById('error-check2');
+
+        form.addEventListener('submit', function(e) {
+            let valid = true;
+            errorCheck1.classList.add('d-none');
+            errorCheck2.classList.add('d-none');
+            if (!check1.checked) {
+                errorCheck1.classList.remove('d-none');
+                valid = false;
+            }
+            if (!check2.checked) {
+                errorCheck2.classList.remove('d-none');
+                valid = false;
+            }
+            if (!valid) e.preventDefault();
+        });
+
+        // Jika pendaftaran berhasil, munculkan modal
+            });
+  </script>
+  <script src=
+  "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/js/all.min.js"></script>
+  <script>
+    // Toggle eye button
+    function toggleEye(id) {
+        const input = document.getElementById(id);
+        const icon = document.getElementById('icon-' + id);
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    }
+
+    // Pastikan hanya abjad untuk nama KTP
+    document.getElementById('name').addEventListener('input', function() {
+        this.value = this.value.replace(/[^a-zA-Z\s]/g, '');
+    });
+
+    // Mask input realtime untuk KTP & WA
+    function maskInput(inputId) {
+        const input = document.getElementById(inputId);
+
+        input.addEventListener('input', function() {
+            const cleaned = this.value.replace(/\D/g, '');
+            this.value = cleaned;
+            this.dataset.raw = cleaned;
+        });
+
+        input.addEventListener('blur', function() {
+            if (this.type === 'password') {
+                this.value = '*'.repeat(this.dataset.raw?.length || 0);
+            }
+        });
+
+        input.addEventListener('focus', function() {
+            if (this.type === 'password') {
+                this.value = this.dataset.raw || '';
+            }
+        });
+    }
+  </script>
+  <script>
+    function reloadCaptcha() {
+        fetch('/reload-captcha')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('captcha-box').textContent = data.captcha;
+            })
+            .catch(error => {
+                console.error('Captcha reload failed:', error);
+            });
+    }
+  </script>
+  <meta name="viewport" content=
+  "width=device-width, initial-scale=1">
+  <title>BELM</title>
+  <link href=
+  "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+  rel="stylesheet" integrity=
+  "sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+  crossorigin="anonymous">
+  <link rel="stylesheet" href=
+  "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel=
+  "stylesheet">
+  <link rel="stylesheet" href=
+  "https://antrigrahadipta.com/assets/css/style.css">
+  <style>
+    .nav-link {
+        transition: color 0.2s ease-in-out;
+    }
+    .nav-link:hover {
+        color: #0d6efd !important;
+    }
+    .navbar-brand:hover {
+        opacity: 0.9;
+    }
+    .navbar {
+        transition: background-color 0.3s ease-in-out;
+    }
+  </style>
+</head>
+<body>
+  <br>
+  <br>
+  <br>
+  <nav class=
+  "navbar navbar-expand-lg fixed-top shadow-sm bg-white">
+    <div class="container py-2">
+      <a class=
+      "navbar-brand d-flex flex-column text-dark fw-semibold" href=
+      "/"><span style="font-size: 16px;">Butik Emas LM ANTAM -
+      Graha Dipta</span> <small class="text-muted" style=
+      "font-size: 9px;">Gedung Graha Dipta, Jalan Pemuda, No.1.<br>
+      Jatinegara kaum, Pulogadung,<br>
+      Jakarta 13250</small></a>
+      <div class=
+      "d-flex d-lg-none justify-content-around w-100 mt-3">
+        <a href="/" class=
+        "text-center text-decoration-none flex-fill text-primary fw-bold">
+        <br>
+        <small>Daftar Antrian</small></a> <a href="/search" class=
+        "text-center text-decoration-none flex-fill text-dark"><br>
+        <small>Cek Antrian</small></a>
+      </div>
+      <div class=
+      "d-none d-lg-flex ms-auto align-items-center gap-3">
+        <a class="nav-link active fw-bold text-primary" href=
+        "/">Daftar Antrian</a> <a class="nav-link text-dark" href=
+        "/search"> Cek Antrian</a>
+      </div>
+    </div>
+  </nav>
+  <link href=
+  "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css"
+  rel="stylesheet">
+  <div class=
+  "container min-vh-100 d-flex flex-column justify-content-center py-4"
+  style="margin-top: 100px;">
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+        <h1 class="text-center mb-3 h4 font-weight-bold">Daftar
+        Antrian<br></h1>
+        <h2 class="text-center mb-3 h4 font-weight-bold">Butik Emas
+        LM ANTAM - Graha Dipta</h2><br>
+        <div class="card shadow-sm">
+          <div class="card-body p-4">
+            <form action="https://antrigrahadipta.com" method=
+            "post">
+              <input type="hidden" name="_token" value=
+              "yTUsRsRk8y1tYpMC45lDx9F8bnA2xMns8XN2OMyW">
+              <div class="form-group mb-3">
+                <label for="name" class="form-label">Nama
+                KTP</label> <input id="name" name="name" type=
+                "text" value="" required="" class="form-control"
+                oninput=
+                "this.value = this.value.replace(/[^a-zA-Z\s]/g, '')">
+              </div>
+              <div class="mb-3">
+                <label for="ktp" class="form-label">Nomor KTP (16
+                digit)</label> <input type="text" class=
+                "form-control" id="ktp" name="ktp" value=""
+                inputmode="numeric" maxlength="16" minlength="16"
+                required="" oninput=
+                "this.value = this.value.replace(/[^0-9]/g, '').slice(0,16)">
+              </div>
+              <div class="mb-3">
+                <label for="phone_number" class="form-label">Nomor
+                HP</label> <input type="text" class="form-control"
+                id="phone_number" name="phone_number" value=""
+                inputmode="numeric" pattern="[0-9]*" maxlength="12"
+                required="" oninput=
+                "this.value = this.value.replace(/[^0-9]/g, '')">
+              </div>
+              <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id=
+                "check" name="check" value="1">
+                <p><label class="form-check-label" for=
+                "check">Dengan ini saya memahami bahwa saat
+                transaksi <strong>WAJIB</strong> menunjukkan
+                <strong>KTP fisik asli</strong> yang sesuai data &
+                tidak dapat menggunakan identitas orang lain dan
+                <strong>hanya dapat bertransaksi setelah 2 hari
+                waktu jeda sejak transaksi
+                terakhir.</strong></label></p>
+                <p><label class="form-check-label" for=
+                "check">&nbsp;</label></p>
+                <p><label class="form-check-label" for=
+                "check"><strong>Pembayaran pembelian emas wajib
+                dari rekening atas nama sendiri tidak boleh dari
+                rekening orang lain.</strong></label></p>
+                <div id="error-check" class=
+                "text-danger mt-1 d-none">
+                  Klik kotak
+                </div>
+              </div>
+              <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" id=
+                "check_2" name="check_2" value="1">
+                <p><label class="form-check-label" for=
+                "check_2">Saya memahami <strong>Butik Emas
+                LM</strong> &nbsp;<strong>ANTAM</strong> hanya
+                melayani pembelian <strong>End</strong>
+                &nbsp;<strong>Customer</strong> <strong>(bukan
+                untuk tujuan perdagangan).</strong></label></p>
+                <p><label class="form-check-label" for=
+                "check_2">&nbsp;</label></p>
+                <p><label class="form-check-label" for=
+                "check_2">Saya memahami bahwa apabila
+                <strong>Sewaktu-waktu</strong> stok produk tidak
+                tersedia maka transaksi tidak dapat
+                dilanjutkan.</label></p>
+                <div id="error-check2" class=
+                "text-danger mt-1 d-none">
+                  Klik kotak
+                </div>
+              </div>
+              <div class="form-group mb-3">
+                <label for="captcha_input" class=
+                "form-label">Masukkan teks berikut:</label>
+                <div class="d-flex align-items-center">
+                  <div id="captcha-box" class=
+                  "px-3 py-2 bg-light border me-2" style=
+                  "letter-spacing: 5px; font-weight: bold;">
+                    ngMCyxLO
+                  </div><input id="captcha_input" name=
+                  "captcha_input" type="text" required="" class=
+                  "form-control" style="max-width: 150px;">
+                </div>
+              </div>
+              <div class="form-group">
+                <button type="submit" class="btn btn-primary w-100"
+                style=
+                "background-color: #379777; border-color: #379777;">
+                Daftar</button>
+              </div>
+            </form><br>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <section id="footer" class="bg-white">
+    <div class="container py-5">
+      <footer>
+        <div class="row"></div>
+      </footer>
+    </div>
+  </section>
+  <script src=
+  "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+  integrity=
+  "sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+  crossorigin="anonymous"></script> 
+  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+</body>
+</html>
