@@ -1,57 +1,48 @@
-/**
- * app.js
- *
- * Batch register using Playwright with unlimited retry until success.
- *
- * Usage:
- *   TARGET_URL="https://www.antrisimatupang.com" CONCURRENCY=3 HEADLESS=true node app.js
- *   TARGET_URL="https://www.antrisimatupang.com" MODE="parallel" CONCURRENCY=5 ITERATIONS=100 node app.js
- *
- * Env variables:
- *   TARGET_URL (default https://www.antrisimatupang.com)
- *   CONCURRENCY (default 1) - how many parallel browser instances per batch
- *   ITERATIONS (optional) - max number of entries to process (default: all)
- *   HEADLESS (true/false default true)
- *   MODE ("sequential" or "parallel", default "sequential")
- *   WAIT_AFTER_SUBMIT (ms default 2500)
- */
-
 const fs = require('fs');
 const path = require('path');
 const csv = require('csv-parser');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const { chromium } = require('playwright');
 
+//
+// Configuration via env
+//
+const NAME_PREFIX = process.env.NAME_PREFIX || 'User';
 const TARGET_URL = process.env.TARGET_URL || 'https://www.antrisimatupang.com';
 const CONCURRENCY = Number(process.env.CONCURRENCY || 1);
 const ITERATIONS = process.env.ITERATIONS ? Number(process.env.ITERATIONS) : null;
 const HEADLESS = (process.env.HEADLESS ?? 'true') === 'true';
 const MODE = (process.env.MODE || 'sequential').toLowerCase();
 const WAIT_AFTER_SUBMIT = Number(process.env.WAIT_AFTER_SUBMIT || 1500);
+const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS || 10); // max retries per row
+const ATTEMPT_TIMEOUT_MS = Number(process.env.ATTEMPT_TIMEOUT_MS || 60_000); // per-attempt timeout
+const PROXY = process.env.PROXY || null; // optional proxy server (socks5://...)
+const BROWSER_ARGS = process.env.BROWSER_ARGS ? process.env.BROWSER_ARGS.split(' ') : [];
 
+// Dirs
 const INPUT_DIR = path.join(process.cwd(), 'input');
 const OUTPUT_DIR = path.join(process.cwd(), 'output');
 if (!fs.existsSync(INPUT_DIR)) fs.mkdirSync(INPUT_DIR, { recursive: true });
 if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
-// Mapping form fields
+// Default selectors mapping (try multiple fallbacks)
 const SELECTOR_MAP = {
-  name: '#name',
-  ktp: '#ktp',
-  phone: '#phone_number',
-  check1: '#check',
-  check2: '#check_2',
-  // Captcha selectors (ambil dari captcha box dan set ke captcha input)
-  captchaBox: '#captcha-box, .captcha-box, [data-captcha], [id*="captcha" i]',
-  captchaInput: '#captcha_input, input[name*="captcha" i]',
-  submitBtn: 'button[type="submit"], input[type="submit"], button#submit',
-  form: 'form'
+  name: ['#name', 'input[name="name"]', 'input[name*="name" i]'],
+  ktp: ['#ktp', 'input[name="ktp"]', 'input[name*="ktp" i]'],
+  phone: ['#phone_number', 'input[name*="phone" i]', 'input[name*="hp" i]'],
+  check1: ['#check', 'input[name*="check" i]'],
+  check2: ['#check_2', 'input[name*="check_2" i]', 'input[name*="check2" i]'],
+  captchaBox: ['#captcha-box', '.captcha-box', '[data-captcha]', '[id*="captcha" i]'],
+  captchaInput: ['#captcha_input', 'input[name*="captcha" i]'],
+  submitBtn: ['button[type="submit"]', 'input[type="submit"]', 'button#submit'],
+  form: ['form']
 };
 
 function nowTs() { return new Date().toISOString(); }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-function safeStr(s) { try { return (s||'').toString(); } catch(e) { return ''; } }
+function safeStr(s) { try { return (s ?? '').toString(); } catch (e) { return ''; } }
 
+// CSV / JSON loaders
 function loadCsv(filePath) {
   return new Promise((resolve, reject) => {
     const rows = [];
@@ -85,164 +76,232 @@ async function loadInput() {
 const csvWriter = createCsvWriter({
   path: path.join(OUTPUT_DIR, 'results.csv'),
   header: [
-    {id: 'id', title: 'id'},
-    {id: 'sourceRow', title: 'sourceRow'},
-    {id: 'status', title: 'status'},
-    {id: 'message', title: 'message'},
-    {id: 'screenshot', title: 'screenshot'},
-    {id: 'timestamp', title: 'timestamp'}
+    { id: 'id', title: 'id' },
+    { id: 'sourceRow', title: 'sourceRow' },
+    { id: 'status', title: 'status' },
+    { id: 'message', title: 'message' },
+    { id: 'screenshot', title: 'screenshot' },
+    { id: 'timestamp', title: 'timestamp' }
   ]
 });
 
-async function runRegistration(item, idx) {
-  let result = { id: idx, sourceRow: JSON.stringify(item), status: 'unknown', message: '', screenshot: '', timestamp: nowTs() };
-
-  while (true) { // unlimited retry loop
+// helper: find first selector that exists from array
+async function findSelector(page, selectors) {
+  for (const s of selectors) {
     try {
-      const browser = await chromium.launch({ headless: HEADLESS });
-      const context = await browser.newContext();
-      const page = await context.newPage();
+      const el = await page.$(s);
+      if (el) return s;
+    } catch (e) { /* ignore */ }
+  }
+  return null;
+}
 
-      await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await sleep(500);
+async function attemptRegistration(item, idx, attemptNo) {
+  let browser, context, page;
+  const result = { id: idx, sourceRow: JSON.stringify(item), status: 'unknown', message: '', screenshot: '', timestamp: nowTs() };
 
-      // fill form (kecualikan captchaBox/captchaInput dari loop umum)
-      for (const key of Object.keys(SELECTOR_MAP)) {
-        if (['submitBtn','form','check1','check2','captchaBox','captchaInput'].includes(key)) continue;
-        const selector = SELECTOR_MAP[key];
-        if (!selector) continue;
-        const val = item[key] ?? item[key?.toLowerCase?.()] ?? item[key?.toUpperCase?.()];
-        if (val !== undefined && val !== null && (await page.$(selector))) {
-          await page.fill(selector, safeStr(val)).catch(()=>{});
-          await sleep(200);
-        }
-      }
+  const browserLaunchOptions = {
+    headless: HEADLESS,
+    args: BROWSER_ARGS
+  };
+  if (PROXY) browserLaunchOptions.proxy = { server: PROXY };
 
-      // checkboxes
-      for (const c of ['check1','check2']) {
-        const sel = SELECTOR_MAP[c];
-        if(sel && await page.$(sel)){
-          const want = item[c] ?? item[c+'_'] ?? item.accept ?? item.agree;
-          if(want === undefined || ['true','1','yes'].includes(String(want).toLowerCase())){
-            await page.check(sel).catch(async ()=>{ await page.click(sel).catch(()=>{}); });
-            await sleep(100);
-          }
-        }
-      }
+  try {
+    browser = await chromium.launch(browserLaunchOptions);
+    context = await browser.newContext();
+    page = await context.newPage();
 
-      // Captcha: ambil teks dari captchaBox dan set di captchaInput
+    // Set a conservative navigation timeout
+    page.setDefaultNavigationTimeout(30_000);
+    page.setDefaultTimeout(15_000);
+
+    await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await sleep(500);
+
+    // Fill simple inputs
+    for (const key of ['name', 'ktp', 'phone']) {
+      const selectors = SELECTOR_MAP[key];
+      if (!selectors) continue;
+      const sel = await findSelector(page, selectors);
+      if (!sel) continue;
+      const val = item[key] ?? item[key?.toLowerCase?.()] ?? item[key?.toUpperCase?.()];
+      if (val === undefined || val === null) continue;
       try {
-        const captchaBoxSel = SELECTOR_MAP.captchaBox;
-        const captchaInputSel = SELECTOR_MAP.captchaInput;
-
-        const hasBox = captchaBoxSel ? await page.$(captchaBoxSel) : null;
-        const hasInput = captchaInputSel ? await page.$(captchaInputSel) : null;
-
-        if (hasBox && hasInput) {
-          let rawText = await page.textContent(captchaBoxSel);
-          rawText = (rawText || '').trim();
-
-          // Ambil baris pertama yang non-empty, fallback ke pembersihan sederhana
-          let code = rawText
-            .split('\n')
-            .map(t => t.trim())
-            .filter(Boolean)[0] || rawText;
-
-          // Jika perlu, bersihkan karakter non-alfanumerik berlebih (opsional)
-          // code = code.replace(/[^A-Za-z0-9]+/g, '').slice(0, 16);
-
-          if (code) {
-            await page.fill(captchaInputSel, code).catch(()=>{});
-            await sleep(150);
-            console.log(`Row ${idx}: captcha set from box -> "${code}"`);
-          }
-        }
+        await page.waitForSelector(sel, { timeout: 3000 });
+        await page.fill(sel, safeStr(val)).catch(() => {});
+        await sleep(150);
       } catch (e) {
-        console.warn(`Row ${idx} captcha handling warn:`, e.message || e);
+        // ignore fill error
       }
+    }
 
-      // submit
-      const submitSel = SELECTOR_MAP.submitBtn;
-      if(submitSel && await page.$(submitSel)){
-        await Promise.all([
-          page.click(submitSel).catch(()=>{}),
-          page.waitForTimeout(500)
-        ]);
+    // Checkboxes: attempt to check if wanted (interpret truthy)
+    for (const chk of ['check1', 'check2']) {
+      const selectors = SELECTOR_MAP[chk];
+      if (!selectors) continue;
+      const sel = await findSelector(page, selectors);
+      if (!sel) continue;
+      const wantRaw = item[chk] ?? item[chk + '_'] ?? item.accept ?? item.agree;
+      // default to true if undefined, to mimic original behavior which checks them
+      const want = wantRaw === undefined ? true : ['true', '1', 'yes', 'y'].includes(String(wantRaw).toLowerCase());
+      if (want) {
+        try {
+          await page.waitForSelector(sel, { timeout: 3000 });
+          await page.check(sel).catch(async () => { await page.click(sel).catch(() => {}); });
+          await sleep(80);
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+
+    // Captcha: read visible captcha box text and set to input if present
+    try {
+      const captchaBoxSel = await findSelector(page, SELECTOR_MAP.captchaBox);
+      const captchaInputSel = await findSelector(page, SELECTOR_MAP.captchaInput);
+      if (captchaBoxSel && captchaInputSel) {
+        const rawText = (await page.textContent(captchaBoxSel) || '').trim();
+        // prefer first non-empty line
+        const code = rawText.split('\n').map(s => s.trim()).filter(Boolean)[0] || rawText;
+        const cleaned = (code || '').replace(/\s+/g, '');
+        if (cleaned) {
+          await page.fill(captchaInputSel, cleaned).catch(() => {});
+          console.log(`${nowTs()} Row ${idx} attempt ${attemptNo}: captcha set -> "${cleaned}"`);
+          await sleep(120);
+        }
+      }
+    } catch (e) {
+      console.warn(`${nowTs()} Row ${idx} attempt ${attemptNo} captcha handling warn: ${e.message || e}`);
+    }
+
+    // Submit form: try known submit selectors first; otherwise submit form via JS
+    const submitSel = await findSelector(page, SELECTOR_MAP.submitBtn);
+    if (submitSel) {
+      // Click and wait a short while
+      await Promise.all([
+        page.click(submitSel).catch(() => {}),
+        page.waitForTimeout(300)
+      ]);
+    } else {
+      // fallback: submit form element
+      const formSel = await findSelector(page, SELECTOR_MAP.form);
+      if (formSel) {
+        await page.$eval(formSel, f => f.submit()).catch(() => {});
       } else {
-        await page.evaluate(() => document.querySelector('form')?.submit()).catch(()=>{});
+        // as last resort execute click on first button[type=submit]
+        await page.evaluate(() => document.querySelector('button[type="submit"]')?.click());
       }
+    }
 
-      await sleep(WAIT_AFTER_SUBMIT);
+    // wait for server response / UI change
+    await sleep(WAIT_AFTER_SUBMIT);
 
-      const successSel = await page.$('.alert-success, .success-message, .modal-success');
-      const errorSel = await page.$('.alert-danger, .error-message, .validation-error');
+    // Determine result by searching for common success/error indicators
+    const successSel = await page.$('.alert-success, .success-message, .modal-success, .toast-success');
+    const errorSel = await page.$('.alert-danger, .error-message, .validation-error, .toast-error');
 
-      if(successSel){
-        result.status = 'success';
-        result.message = (await successSel.textContent()).trim().slice(0,400);
-      } else if(errorSel){
-        result.status = 'error';
-        result.message = (await errorSel.textContent()).trim().slice(0,400);
-      } else {
-        result.status = 'unknown';
-        const title = await page.title();
-        const body = (await page.textContent('body') || '').replace(/\s+/g,' ').slice(0,400);
-        result.message = `title:${title} body:${body.slice(0,300)}`;
-      }
+    if (successSel) {
+      result.status = 'success';
+      result.message = (await successSel.textContent() || '').trim().slice(0, 1000);
+    } else if (errorSel) {
+      result.status = 'error';
+      result.message = (await errorSel.textContent() || '').trim().slice(0, 1000);
+    } else {
+      // fallback: inspect body text
+      const title = await page.title().catch(() => '');
+      const bodyText = (await page.textContent('body').catch(() => '') || '').replace(/\s+/g, ' ').trim();
+      result.status = 'unknown';
+      result.message = `title:${title} body:${bodyText.slice(0, 800)}`;
+    }
 
-      // screenshot with nik
-      // const ss = path.join(OUTPUT_DIR, `screenshot_${idx}_${Date.now()}.png`);
-      const ss = path.join(OUTPUT_DIR, `screenshot_${item.ktp}.png`);
-      await page.screenshot({ path: ss }).catch(()=>{});
+    // screenshot
+    try {
+      const ktpSafe = (item.ktp || 'no_ktp').toString().replace(/\s+/g, '_').slice(0, 50);
+      const ss = path.join(OUTPUT_DIR, `screenshot_${ktpSafe}_${NAME_PREFIX}_${Date.now()}.png`);
+      await page.screenshot({ path: ss, fullPage: true }).catch(() => {});
       result.screenshot = ss;
-      result.timestamp = nowTs();
+    } catch (e) {
+      // ignore screenshot errors
+    }
 
-      await page.close();
-      await context.close();
-      await browser.close();
+    result.timestamp = nowTs();
+    return result;
+  } finally {
+    try { if (page) await page.close().catch(()=>{}); } catch (e) {}
+    try { if (context) await context.close().catch(()=>{}); } catch (e) {}
+    try { if (browser) await browser.close().catch(()=>{}); } catch (e) {}
+  }
+}
 
-      if(result.status === 'success') break; // exit loop if success
-      console.log(`Row ${idx} not successful, retrying in 2s...`);
-      await sleep(2000);
-
-    } catch(err) {
-      console.warn(`Row ${idx} exception:`, err.message || err);
+async function runRegistration(item, idx) {
+  const result = { id: idx, sourceRow: JSON.stringify(item), status: 'unknown', message: '', screenshot: '', timestamp: nowTs() };
+  let attempt = 0;
+  while (attempt < MAX_ATTEMPTS) {
+    attempt++;
+    console.log(`${nowTs()} Row ${idx}: starting attempt ${attempt}/${MAX_ATTEMPTS}`);
+    try {
+      const attemptPromise = attemptRegistration(item, idx, attempt);
+      // enforce per-attempt timeout
+      const res = await Promise.race([
+        attemptPromise,
+        new Promise((_, rej) => setTimeout(() => rej(new Error('attempt timeout')), ATTEMPT_TIMEOUT_MS))
+      ]);
+      // if reached here, attemptRegistration resolved
+      Object.assign(result, res);
+      if (result.status === 'success') {
+        console.log(`${nowTs()} Row ${idx} succeeded on attempt ${attempt}`);
+        break;
+      } else {
+        console.log(`${nowTs()} Row ${idx} result=${result.status}. message=${(result.message||'').slice(0,200)}`);
+      }
+    } catch (err) {
+      console.warn(`${nowTs()} Row ${idx} attempt ${attempt} error: ${err.message || err}`);
       result.status = 'exception';
-      result.message = err.message || String(err);
-      result.timestamp = nowTs();
-      console.log(`Retrying row ${idx} in 2s...`);
-      await sleep(2000);
+      result.message = err.message ? err.message.slice(0, 1000) : String(err);
+    }
+
+    // Exponential backoff before retrying
+    if (attempt < MAX_ATTEMPTS) {
+      const backoff = Math.min(30_000, 500 * Math.pow(2, attempt)); // cap 30s
+      console.log(`${nowTs()} Row ${idx} will retry in ${backoff}ms`);
+      await sleep(backoff);
+    } else {
+      console.log(`${nowTs()} Row ${idx} reached max attempts (${MAX_ATTEMPTS})`);
     }
   }
 
+  result.timestamp = nowTs();
   return result;
 }
 
 async function runAll() {
   const data = await loadInput();
   const total = data.length;
-  console.log(`Loaded ${total} records.`);
+  console.log(`${nowTs()} Loaded ${total} records.`);
   const toProcess = ITERATIONS ? data.slice(0, ITERATIONS) : data;
   const results = [];
 
-  if(MODE === 'sequential' || CONCURRENCY <= 1){
-    for(let i=0;i<toProcess.length;i++){
-      console.log(`Processing ${i+1}/${toProcess.length}`);
-      const res = await runRegistration(toProcess[i], i+1);
+  if (MODE === 'sequential' || CONCURRENCY <= 1) {
+    for (let i = 0; i < toProcess.length; i++) {
+      console.log(`${nowTs()} Processing ${i + 1}/${toProcess.length}`);
+      const res = await runRegistration(toProcess[i], i + 1);
       results.push(res);
+      // small pause between rows
       await sleep(300);
     }
   } else {
-    const queue = toProcess.map((d,i)=>({d,i}));
-    while(queue.length){
+    // simple concurrency queue
+    const queue = toProcess.map((d, i) => ({ d, i }));
+    while (queue.length) {
       const batch = queue.splice(0, CONCURRENCY);
-      const promises = batch.map(b => runRegistration(b.d, b.i+1));
+      const promises = batch.map(b => runRegistration(b.d, b.i + 1));
       const batchRes = await Promise.all(promises);
       results.push(...batchRes);
       await sleep(300);
     }
   }
 
+  // Write results
   await csvWriter.writeRecords(results.map(r => ({
     id: r.id,
     sourceRow: r.sourceRow,
@@ -251,10 +310,17 @@ async function runAll() {
     screenshot: r.screenshot,
     timestamp: r.timestamp
   })));
-  console.log('Done. Results written to:', path.join(OUTPUT_DIR, 'results.csv'));
+  console.log(`${nowTs()} Done. Results written to:`, path.join(OUTPUT_DIR, 'results.csv'));
 }
 
-runAll().catch(err=>{
-  console.error('Fatal error:', err);
+// run
+runAll().catch(async (err) => {
+  console.error(`${nowTs()} Fatal error:`, err);
+  // attempt to write partial error file
+  try {
+    const errPath = path.join(OUTPUT_DIR, `fatal_${Date.now()}.log`);
+    fs.writeFileSync(errPath, String(err.stack || err));
+    console.error('Wrote fatal log to', errPath);
+  } catch (e) { /* ignore */ }
   process.exit(1);
 });
