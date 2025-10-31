@@ -1,0 +1,110 @@
+[2025-10-31T01:23:04.951Z] Process started
+[2025-10-31T01:23:04.953Z] === BATCH REGISTRATION STARTED ===
+[2025-10-31T01:23:04.953Z] Configuration: TARGET=https://www.antrigrahadipta.com, CONCURRENCY=1, MAX_ATTEMPTS=20
+[2025-10-31T01:23:04.959Z] Loaded 1 records
+[2025-10-31T01:23:04.959Z] Processing row 1/1
+[2025-10-31T01:23:04.959Z] Row 1: attempt 1/20
+[2025-10-31T01:23:05.045Z] Anti-bot stealth mode applied
+[2025-10-31T01:23:05.045Z] Row 1 attempt 1: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:23:15.875Z] Captcha box has no text
+[2025-10-31T01:23:15.876Z] Row 1 attempt 1: submitting form
+[2025-10-31T01:23:19.066Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:23:19.066Z] Row 1: waiting 1665ms before retry
+[2025-10-31T01:23:20.732Z] Row 1: attempt 2/20
+[2025-10-31T01:23:20.811Z] Anti-bot stealth mode applied
+[2025-10-31T01:23:20.811Z] Row 1 attempt 2: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:23:24.527Z] Captcha box has no text
+[2025-10-31T01:23:24.527Z] Row 1 attempt 2: submitting form
+[2025-10-31T01:23:27.696Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:23:27.696Z] Row 1: waiting 3870ms before retry
+[2025-10-31T01:23:31.570Z] Row 1: attempt 3/20
+[2025-10-31T01:23:31.648Z] Anti-bot stealth mode applied
+[2025-10-31T01:23:31.648Z] Row 1 attempt 3: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:23:38.065Z] Captcha box has no text
+[2025-10-31T01:23:38.065Z] Row 1 attempt 3: submitting form
+[2025-10-31T01:23:41.225Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:23:41.225Z] Row 1: waiting 5318ms before retry
+[2025-10-31T01:23:46.549Z] Row 1: attempt 4/20
+[2025-10-31T01:23:46.628Z] Anti-bot stealth mode applied
+[2025-10-31T01:23:46.628Z] Row 1 attempt 4: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:23:48.804Z] Captcha box has no text
+[2025-10-31T01:23:48.804Z] Row 1 attempt 4: submitting form
+[2025-10-31T01:23:51.961Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:23:51.961Z] Row 1: waiting 10260ms before retry
+[2025-10-31T01:24:02.229Z] Row 1: attempt 5/20
+[2025-10-31T01:24:02.303Z] Anti-bot stealth mode applied
+[2025-10-31T01:24:02.304Z] Row 1 attempt 5: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:24:05.369Z] Captcha box has no text
+[2025-10-31T01:24:05.369Z] Row 1 attempt 5: submitting form
+[2025-10-31T01:24:08.531Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:24:08.531Z] Row 1: waiting 16983ms before retry
+[2025-10-31T01:24:25.532Z] Row 1: attempt 6/20
+[2025-10-31T01:24:25.610Z] Anti-bot stealth mode applied
+[2025-10-31T01:24:25.610Z] Row 1 attempt 6: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:24:30.418Z] Captcha box has no text
+[2025-10-31T01:24:30.418Z] Row 1 attempt 6: submitting form
+[2025-10-31T01:24:33.595Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:24:33.595Z] Row 1: waiting 28126ms before retry
+[2025-10-31T01:25:01.721Z] Row 1: attempt 7/20
+[2025-10-31T01:25:01.800Z] Anti-bot stealth mode applied
+[2025-10-31T01:25:01.800Z] Row 1 attempt 7: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:25:05.343Z] Captcha box has no text
+[2025-10-31T01:25:05.343Z] Row 1 attempt 7: submitting form
+[2025-10-31T01:25:08.506Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:25:08.506Z] Row 1: waiting 36352ms before retry
+[2025-10-31T01:25:44.871Z] Row 1: attempt 8/20
+[2025-10-31T01:25:44.950Z] Anti-bot stealth mode applied
+[2025-10-31T01:25:44.951Z] Row 1 attempt 8: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:25:48.706Z] Captcha box has no text
+[2025-10-31T01:25:48.706Z] Row 1 attempt 8: submitting form
+[2025-10-31T01:25:51.869Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:25:51.869Z] Row 1: waiting 36423ms before retry
+[2025-10-31T01:26:28.322Z] Row 1: attempt 9/20
+[2025-10-31T01:26:28.403Z] Anti-bot stealth mode applied
+[2025-10-31T01:26:28.403Z] Row 1 attempt 9: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:26:31.728Z] Captcha box has no text
+[2025-10-31T01:26:31.728Z] Row 1 attempt 9: submitting form
+[2025-10-31T01:26:34.888Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:26:34.888Z] Row 1: waiting 35247ms before retry
+[2025-10-31T01:27:10.140Z] Row 1: attempt 10/20
+[2025-10-31T01:27:10.215Z] Anti-bot stealth mode applied
+[2025-10-31T01:27:10.215Z] Row 1 attempt 10: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:27:16.009Z] Captcha box has no text
+[2025-10-31T01:27:16.009Z] Row 1 attempt 10: submitting form
+[2025-10-31T01:27:19.173Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:27:19.173Z] Row 1: waiting 35769ms before retry
+[2025-10-31T01:27:54.964Z] Row 1: attempt 11/20
+[2025-10-31T01:27:55.052Z] Anti-bot stealth mode applied
+[2025-10-31T01:27:55.052Z] Row 1 attempt 11: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:27:58.431Z] Captcha box has no text
+[2025-10-31T01:27:58.431Z] Row 1 attempt 11: submitting form
+[2025-10-31T01:28:01.583Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:28:01.583Z] Row 1: waiting 36826ms before retry
+[2025-10-31T01:28:38.415Z] Row 1: attempt 12/20
+[2025-10-31T01:28:38.494Z] Anti-bot stealth mode applied
+[2025-10-31T01:28:38.494Z] Row 1 attempt 12: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:28:42.159Z] Captcha box has no text
+[2025-10-31T01:28:42.159Z] Row 1 attempt 12: submitting form
+[2025-10-31T01:28:45.317Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:28:45.317Z] Row 1: waiting 36705ms before retry
+[2025-10-31T01:29:22.058Z] Row 1: attempt 13/20
+[2025-10-31T01:29:22.139Z] Anti-bot stealth mode applied
+[2025-10-31T01:29:22.139Z] Row 1 attempt 13: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:29:24.840Z] Captcha box has no text
+[2025-10-31T01:29:24.841Z] Row 1 attempt 13: submitting form
+[2025-10-31T01:29:27.996Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:29:27.996Z] Row 1: waiting 35782ms before retry
+[2025-10-31T01:30:03.799Z] Row 1: attempt 14/20
+[2025-10-31T01:30:03.878Z] Anti-bot stealth mode applied
+[2025-10-31T01:30:03.878Z] Row 1 attempt 14: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:30:06.635Z] Captcha box has no text
+[2025-10-31T01:30:06.635Z] Row 1 attempt 14: submitting form
+[2025-10-31T01:30:09.798Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:30:09.798Z] Row 1: waiting 36028ms before retry
+[2025-10-31T01:30:45.861Z] Row 1: attempt 15/20
+[2025-10-31T01:30:45.940Z] Anti-bot stealth mode applied
+[2025-10-31T01:30:45.940Z] Row 1 attempt 15: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:30:49.159Z] Captcha box has no text
+[2025-10-31T01:30:49.159Z] Row 1 attempt 15: submitting form
+[2025-10-31T01:30:52.314Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:30:52.314Z] Row 1: waiting 36957ms before retry

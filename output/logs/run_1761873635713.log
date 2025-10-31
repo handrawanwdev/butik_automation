@@ -1,0 +1,15 @@
+[2025-10-31T01:20:35.713Z] Process started
+[2025-10-31T01:20:35.715Z] === BATCH REGISTRATION STARTED ===
+[2025-10-31T01:20:35.715Z] Configuration: TARGET=https://www.antrigrahadipta.com, CONCURRENCY=4, MAX_ATTEMPTS=15
+[2025-10-31T01:20:35.722Z] Loaded 1 records
+[2025-10-31T01:20:35.722Z] Processing batch 1 (1 items)
+[2025-10-31T01:20:35.722Z] Row 1: attempt 1/15
+[2025-10-31T01:20:35.814Z] Anti-bot stealth mode applied
+[2025-10-31T01:20:35.815Z] Row 1 attempt 1: navigating to https://www.antrigrahadipta.com
+[2025-10-31T01:20:43.354Z] Captcha box has no text
+[2025-10-31T01:20:43.354Z] Row 1 attempt 1: submitting form
+[2025-10-31T01:20:45.527Z] Row 1: status=error, msg=Pendaftaran antrian  31 okt 2025 :  KUOTA FULL (07.30-08.00)  1. PENGUMUMAN :Seluruh pelanggan maksimal 2 (dua) kali transaksi dalam 1 (satu) bulan be
+[2025-10-31T01:20:45.527Z] Row 1: waiting 1843ms before retry
+[2025-10-31T01:20:47.371Z] Row 1: attempt 2/15
+[2025-10-31T01:20:47.452Z] Anti-bot stealth mode applied
+[2025-10-31T01:20:47.453Z] Row 1 attempt 2: navigating to https://www.antrigrahadipta.com
