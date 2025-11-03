@@ -13,7 +13,7 @@ const CONCURRENCY = Number(process.env.CONCURRENCY || 1);
 const ITERATIONS = process.env.ITERATIONS ? Number(process.env.ITERATIONS) : null;
 const HEADLESS = (process.env.HEADLESS ?? 'true') === 'true';
 const MODE = (process.env.MODE || 'sequential').toLowerCase();
-const WAIT_AFTER_SUBMIT = Number(process.env.WAIT_AFTER_SUBMIT || 2000);
+const WAIT_AFTER_SUBMIT = Number(process.env.WAIT_AFTER_SUBMIT || 500);
 const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS || 15);
 const ATTEMPT_TIMEOUT_MS = Number(process.env.ATTEMPT_TIMEOUT_MS || 90_000);
 const PROXY = process.env.PROXY || null;
@@ -58,7 +58,7 @@ const SELECTOR_MAP = {
     'input[placeholder*="ktp" i]',
     'input[placeholder*="identitas" i]'
   ],
-  phone: [
+  phone_number: [
     '#phone_number',
     'input[name="phone_number"]',
     'input[name*="phone" i]',
@@ -209,8 +209,8 @@ async function fillFormField(page, selector, value, fieldName = '') {
     
     // triple clear
     await page.click(selector, { clickCount: 3 });
-    await page.keyboard.press('Control+A');
-    await page.keyboard.press('Backspace');
+    await page.keyboard.press('Control+A'); // select all
+    await page.keyboard.press('Backspace'); // first clear
     await sleep(REQUEST_DELAY_MS);
     
     // type slowly
@@ -239,7 +239,7 @@ async function checkCheckbox(page, selector, fieldName = '') {
     const isChecked = await page.$eval(selector, el => el.checked).catch(() => false);
     if (!isChecked) {
       await page.click(selector);
-      await sleep(REQUEST_DELAY_MS);
+      // await sleep(REQUEST_DELAY_MS);
       const nowChecked = await page.$eval(selector, el => el.checked).catch(() => false);
       logMsg(`Checkbox ${fieldName}: ${nowChecked ? 'checked' : 'failed'}`);
       return nowChecked;
@@ -352,17 +352,17 @@ async function attemptRegistration(item, idx, attemptNo) {
     await applyAntiBot(page);
 
     // Set timeouts
-    page.setDefaultNavigationTimeout(40_000);
-    page.setDefaultTimeout(20_000);
+    page.setDefaultNavigationTimeout(40_000); // 40 seconds
+    page.setDefaultTimeout(20_000); // 20 seconds
 
     // Navigate
     logMsg(`Row ${idx} attempt ${attemptNo}: navigating to ${TARGET_URL}`);
-    await page.goto(TARGET_URL, { waitUntil: 'networkidle', timeout: 40_000 });
+    await page.goto(TARGET_URL, { waitUntil: 'networkidle', timeout: 40_000 }); // 40 seconds
     await sleep(800);
 
     // Fill form
     const fillResults = {};
-    for (const key of ['name', 'ktp', 'phone']) {
+    for (const key of ['name', 'ktp', 'phone_number']) {
       const selectors = SELECTOR_MAP[key];
       if (!selectors) continue;
       const sel = await findSelector(page, selectors);
@@ -408,7 +408,7 @@ async function attemptRegistration(item, idx, attemptNo) {
       }
     }
 
-    await sleep(WAIT_AFTER_SUBMIT);
+    await sleep(WAIT_AFTER_SUBMIT); // wait after submit for response to load
 
     // Detect result
     const successIndicators = [
@@ -535,7 +535,7 @@ async function runRegistration(item, idx) {
       const jitter = Math.random() * 2000;
       const backoff = baseBackoff + jitter;
       logMsg(`Row ${idx}: waiting ${Math.round(backoff)}ms before retry`);
-      await sleep(backoff);
+      // await sleep(backoff);
     }
   }
 
@@ -615,6 +615,6 @@ runAll();
 
 /*
 Example run command:
-  TARGET_URL="https://www.antrigrahadipta.com" NAME_PREFIX="antrigrahadipta" MODE="sequential" CONCURRENCY=1 HEADLESS=true MAX_ATTEMPTS=20 WAIT_AFTER_SUBMIT=3000 REQUEST_DELAY_MS=800 node app.js
+  TARGET_URL="https://www.antrigrahadipta.com" NAME_PREFIX="antrigrahadipta" MODE="sequential" CONCURRENCY=1 HEADLESS=true MAX_ATTEMPTS=20 WAIT_AFTER_SUBMIT=500 REQUEST_DELAY_MS=400 node app.js
 
 */
