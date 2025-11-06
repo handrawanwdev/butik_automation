@@ -1,0 +1,31 @@
+{
+  "name": "batch-registration-antam",
+  "version": "2.1.0",
+  "description": "Optimized single-file batch registration with reCAPTCHA v3 support",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js --mode=0",
+    "schedule": "node index.js --mode=1 --hour=07 --minute=29 --second=0"
+  },
+  "keywords": [
+    "batch",
+    "registration",
+    "crawler",
+    "recaptcha",
+    "antam"
+  ],
+  "author": "handrawanwdev",
+  "license": "MIT",
+  "dependencies": {
+    "bottleneck": "^2.19.5",
+    "csv-parse": "^5.4.1",
+    "fetch-cookie": "^3.0.1",
+    "puppeteer": "^24.29.0",
+    "tough-cookie": "^4.1.3",
+    "undici": "^6.11.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
