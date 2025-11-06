@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js --mode=0",
-    "schedule": "node index.js --mode=1 --hour=07 --minute=29 --second=0"
+    "schedule": "node index.js --mode=1 --hour=07 --minute=30 --second=0"
   },
   "keywords": [
     "batch",
