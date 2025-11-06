@@ -1,5 +1,5 @@
 /**
- * 🚀 FARMANESIA BATCH REGISTRATION SYSTEM v2.0
+ * 🚀 BATCH REGISTRATION SYSTEM v2.0
  * Fixed: Using Bottleneck instead of p-limit for CommonJS compatibility
  */
 
