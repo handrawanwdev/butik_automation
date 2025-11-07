@@ -1,14 +1,7 @@
 /**
  * 🚀 BATCH REGISTRATION SYSTEM v2.1
- * Improvements:
- * - Keep-Alive Agent (undici) for stable & faster connections
- * - Robust headers (browser-like) + randomized User-Agent pool
- * - CSRF extraction fallback (meta csrf-token)
- * - Smarter retry (429/503 Retry-After, exponential backoff + jitter)
- * - Reuse CookieJar per KTP across attempts to reduce 419
- * - Adaptive concurrency based on error rate and latency
- * - Deduplicate CSV entries by KTP
- * - Safer server-up check
+ * Anti-Down Feature: Auto resume jika website sedang down
+ * Fixed: Using Bottleneck instead of p-limit for CommonJS compatibility
  */
 
 const fs = require("fs");
@@ -16,7 +9,7 @@ const path = require("path");
 const { parse } = require("csv-parse/sync");
 const dns = require("dns").promises;
 const Bottleneck = require("bottleneck");
-const { fetch: undiciFetch, Agent, setGlobalDispatcher } = require("undici");
+const { fetch: undiciFetch } = require("undici");
 const { CookieJar } = require("tough-cookie");
 const fetchCookie = require("fetch-cookie").default;
 
@@ -32,7 +25,7 @@ try {
 // ⚙️ CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-let CONFIG = {
+const CONFIG = {
   // API Configuration
   API: {
     url: (process.env.API_URL || "https://antrisimatupang.com").trim(),
@@ -59,6 +52,7 @@ let CONFIG = {
     PAGES_DIR: path.join(__dirname, "pages"),
     BATCH_LOG: path.join(__dirname, "batch.log"),
     RESULT_DIR: path.join(__dirname, "results"),
+    PROGRESS_FILE: path.join(__dirname, "batch_progress.json"), // NEW: Save progress
   },
 
   // Retry & Backoff
@@ -77,6 +71,15 @@ let CONFIG = {
     PEAK_LIMIT: 2,
     BATCH_DELAY_MIN: 300,
     BATCH_DELAY_MAX: 900,
+  },
+
+  // 🆕 Anti-Down Configuration
+  antiDown: {
+    ENABLED: true, // Aktifkan fitur anti-down
+    CHECK_INTERVAL: 10000, // Cek server setiap 10 detik saat down
+    MAX_DOWN_TIME: 3600000, // Maksimal menunggu 1 jam (bisa disable dengan 0)
+    RETRY_INTERVAL: 5000, // Retry cek server tiap 5 detik
+    LOG_VERBOSE: true, // Log setiap cek server
   },
 
   // Session Management
@@ -99,10 +102,8 @@ let CONFIG = {
 
   // Headers
   headers: {
-    USER_AGENT:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    ACCEPT:
-      "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    USER_AGENT: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    ACCEPT: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     ACCEPT_LANGUAGE: "en-US,en;q=0.5",
     ACCEPT_ENCODING: "gzip, deflate, br",
   },
@@ -119,74 +120,7 @@ let CONFIG = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-/**
- * 🌐 UNDICI GLOBAL AGENT + HEADER HELPERS
- */
-// ═══════════════════════════════════════════════════════════════════════════
-
-setGlobalDispatcher(
-  new Agent({
-    keepAliveTimeout: 10_000,
-    keepAliveMaxTimeout: 20_000,
-    connections: 100,
-    pipelining: 1,
-  })
-);
-
-const USER_AGENTS = [
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-];
-function randomUA() {
-  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
-}
-
-function buildBrowserHeaders(apiUrl, overrides = {}) {
-  const url = new URL(apiUrl);
-  return {
-    "User-Agent": CONFIG.headers.USER_AGENT,
-    Accept: CONFIG.headers.ACCEPT,
-    "Accept-Language": CONFIG.headers.ACCEPT_LANGUAGE,
-    "Accept-Encoding": CONFIG.headers.ACCEPT_ENCODING,
-    "Cache-Control": "max-age=0",
-    Pragma: "no-cache",
-    DNT: "1",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "same-origin",
-    "Sec-Fetch-User": "?1",
-    "Upgrade-Insecure-Requests": "1",
-    Origin: `${url.protocol}//${url.host}`,
-    Host: url.host,
-    ...overrides,
-  };
-}
-
-function extractCsrf(html) {
-  // input hidden
-  const m1 = html.match(/name="_token"\s+value="([^"]+)"/i);
-  if (m1) return m1[1];
-  // meta csrf-token
-  const m2 = html.match(
-    /<meta\s+name=["']csrf-token["']\s+content=["']([^"']+)["']/i
-  );
-  if (m2) return m2[1];
-  return null;
-}
-
-function getRetryAfterSeconds(res) {
-  const ra = res.headers.get("retry-after");
-  if (!ra) return null;
-  const asNum = Number(ra);
-  if (!Number.isNaN(asNum)) return Math.max(1, asNum);
-  return 3;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-/**
- * 📝 LOGGER CLASS
- */
+// 📝 LOGGER CLASS
 // ═══════════════════════════════════════════════════════════════════════════
 
 class BatchLogger {
@@ -261,6 +195,15 @@ class BatchLogger {
     fs.appendFileSync(this.batchLog, msg + "\n");
   }
 
+  // 🆕 Log untuk anti-down
+  serverStatus(status, message) {
+    const ts = this.timestamp();
+    const icon = status === "UP" ? "🟢" : "🔴";
+    const msg = `[${ts}] ${icon} SERVER ${status}: ${message}`;
+    console.log(msg);
+    fs.appendFileSync(this.batchLog, msg + "\n");
+  }
+
   saveErrorPage(ktp, html) {
     const dir = path.join(this.errorDir, "error_pages");
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -280,10 +223,7 @@ class BatchLogger {
   printMetrics(metrics) {
     const ts = this.timestamp();
     const duration = ((Date.now() - metrics.startTime) / 1000).toFixed(2);
-    const successRate = (
-      (metrics.successCount / (metrics.totalRequests || 1)) *
-      100
-    ).toFixed(2);
+    const successRate = ((metrics.successCount / (metrics.totalRequests || 1)) * 100).toFixed(2);
     const msg = `
 ╔════════════════════════════════════════════════════╗
 ║             📊 BATCH METRICS SUMMARY               ║
@@ -292,9 +232,7 @@ class BatchLogger {
 ║ Success           : ${String(metrics.successCount).padEnd(30)} ║
 ║ Failed            : ${String(metrics.errorCount).padEnd(30)} ║
 ║ Success Rate      : ${String(successRate + "%").padEnd(30)} ║
-║ Avg Response Time : ${String(
-      metrics.avgResponseTime.toFixed(2) + "ms"
-    ).padEnd(30)} ║
+║ Avg Response Time : ${String(metrics.avgResponseTime.toFixed(2) + "ms").padEnd(30)} ║
 ║ Duration          : ${String(duration + "s").padEnd(30)} ║
 ║ Finish Time       : ${ts.padEnd(32)} ║
 ╚════════════════════════════════════════════════════╝
@@ -335,49 +273,112 @@ async function isOnline() {
 
 async function isServerUp(url) {
   const controller = new AbortController();
-  const timer = setTimeout(
-    () => controller.abort(),
-    CONFIG.API.timeout.pageLoad
-  );
+  const timer = setTimeout(() => controller.abort(), CONFIG.API.timeout.pageLoad);
   try {
-    const res = await undiciFetch(url, {
-      method: "HEAD",
-      signal: controller.signal,
-    });
+    const res = await fetch(url, { method: "HEAD", signal: controller.signal });
     clearTimeout(timer);
-    // Consider server up for typical HEAD denials but reachable
-    return res.ok || res.status === 405 || res.status === 400;
-  } catch {
+    return res.ok;
+  } catch (err) {
     clearTimeout(timer);
     return false;
   }
 }
 
+// 🆕 ANTI-DOWN: Tunggu server sampai up dengan exponential backoff
 async function waitUntilServerUp(url, logger, retryDelay = 5000) {
+  let isDown = false;
+  let downStartTime = null;
+
   while (true) {
     const online = await isOnline();
     if (!online) {
-      logger.warn("Tidak ada koneksi internet, tunggu koneksi...");
+      if (!isDown) {
+        isDown = true;
+        downStartTime = Date.now();
+        logger.serverStatus("DOWN", "Tidak ada koneksi internet");
+      }
+      logger.debug(
+        `⏳ Menunggu koneksi internet... (${Math.round(
+          (Date.now() - downStartTime) / 1000
+        )}s)`
+      );
       await delay(retryDelay);
       continue;
     }
 
     const serverUp = await isServerUp(url);
     if (serverUp) {
+      if (isDown) {
+        const downDuration = Math.round((Date.now() - downStartTime) / 1000);
+        logger.serverStatus("UP", `Server kembali online (down selama ${downDuration}s)`);
+        isDown = false;
+      }
       return;
     }
 
-    logger.warn(
-      `Server masih down, ulangi cek dalam ${retryDelay / 1000} detik...`
+    if (!isDown) {
+      isDown = true;
+      downStartTime = Date.now();
+      logger.serverStatus("DOWN", `Server tidak merespons (${url})`);
+    }
+
+    const downDuration = Math.round((Date.now() - downStartTime) / 1000);
+
+    // Check max down time
+    if (CONFIG.antiDown.MAX_DOWN_TIME > 0 && downDuration > CONFIG.antiDown.MAX_DOWN_TIME / 1000) {
+      logger.warn(`⚠️  Server down terlalu lama (${downDuration}s), cek koneksi atau API URL`);
+      throw new Error(`Server down terlalu lama: ${downDuration}s`);
+    }
+
+    logger.debug(
+      `⏳ Menunggu server up... (${downDuration}s) - Cek ulang dalam ${retryDelay / 1000}s`
     );
     await delay(retryDelay + Math.random() * 2000);
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-/**
- * 🤖 RECAPTCHA V3 TOKEN GENERATOR (PUPPETEER)
- */
+// 💾 PROGRESS MANAGEMENT (NEW)
+// ═══════════════════════════════════════════════════════════════════════════
+
+class ProgressManager {
+  constructor(progressFile) {
+    this.progressFile = progressFile;
+  }
+
+  save(data) {
+    try {
+      fs.writeFileSync(this.progressFile, JSON.stringify(data, null, 2));
+    } catch (err) {
+      console.error("Error saving progress:", err.message);
+    }
+  }
+
+  load() {
+    try {
+      if (fs.existsSync(this.progressFile)) {
+        const data = JSON.parse(fs.readFileSync(this.progressFile, "utf-8"));
+        return data;
+      }
+    } catch (err) {
+      console.error("Error loading progress:", err.message);
+    }
+    return null;
+  }
+
+  clear() {
+    try {
+      if (fs.existsSync(this.progressFile)) {
+        fs.unlinkSync(this.progressFile);
+      }
+    } catch (err) {
+      console.error("Error clearing progress:", err.message);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🤖 RECAPTCHA V3 TOKEN GENERATOR (PUPPETEER)
 // ═══════════════════════════════════════════════════════════════════════════
 
 let browser = null;
@@ -426,7 +427,7 @@ async function getRecaptchaToken(pageUrl, sitekey) {
               .then((token) => {
                 resolve(token);
               })
-              .catch(() => {
+              .catch((err) => {
                 resolve(null);
               });
           });
@@ -452,17 +453,10 @@ async function closeBrowser() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-/**
- * 🔁 FETCH WITH RETRY (generic, optional)
- */
+// 🔁 FETCH WITH RETRY
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function fetchWithRetry(
-  url,
-  opts = {},
-  retryCount = CONFIG.retry.MAX_RETRY,
-  logger = null
-) {
+async function fetchWithRetry(url, opts = {}, retryCount = CONFIG.retry.MAX_RETRY, logger = null) {
   let delayMs = CONFIG.retry.RETRY_DELAY;
 
   for (let attempt = 1; attempt <= retryCount; attempt++) {
@@ -474,10 +468,7 @@ async function fetchWithRetry(
 
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(
-        () => controller.abort(),
-        CONFIG.API.timeout.totalRequest
-      );
+      const timeout = setTimeout(() => controller.abort(), CONFIG.API.timeout.totalRequest);
       const res = await undiciFetch(url, { ...opts, signal: controller.signal });
       clearTimeout(timeout);
 
@@ -488,23 +479,16 @@ async function fetchWithRetry(
 
       if (attempt < retryCount) {
         await delay(delayMs);
-        delayMs = Math.min(
-          delayMs * CONFIG.retry.BACKOFF_MULTIPLIER,
-          CONFIG.retry.MAX_BACKOFF
-        );
+        delayMs = Math.min(delayMs * CONFIG.retry.BACKOFF_MULTIPLIER, CONFIG.retry.MAX_BACKOFF);
       } else {
-        throw new Error(
-          `Gagal fetch setelah ${retryCount} percobaan: ${err.message}`
-        );
+        throw new Error(`Gagal fetch setelah ${retryCount} percobaan: ${err.message}`);
       }
     }
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-/**
- * 📂 CSV READER & CACHE
- */
+// 📂 CSV READER & CACHE
 // ═══════════════════════════════════════════════════════════════════════════
 
 let csvCache = null;
@@ -556,9 +540,7 @@ function checkCSVFile(file, logger) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-/**
- * 🧑 SESSION MANAGEMENT
- */
+// 🧑 SESSION MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════════════
 
 const sessionCache = new Map();
@@ -580,128 +562,76 @@ function getOrCreateSession(ktp) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-/**
- * 📤 POST DATA WITH RECAPTCHA V3 (robust)
- */
+// 📤 POST DATA WITH RECAPTCHA V3 & ANTI-DOWN
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function postData(item, apiUrl, logger) {
   const maxAttempts = CONFIG.retry.MAX_RETRY;
   let lastError = null;
 
-  // REUSE jar per item KTP agar CSRF/cookie konsisten di semua attempt
-  const jar = CONFIG.session.FRESH_SESSION_PER_KTP
-    ? new CookieJar()
-    : getOrCreateSession(item.ktp);
-
-  const localFetch = fetchCookie(undiciFetch, jar);
-
-  // Gunakan UA yang sama untuk semua attempt pada item ini
-  const selectedUA = randomUA();
-
-  async function smartFetch(url, opts, label) {
-    let delayMs = CONFIG.retry.RETRY_DELAY;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(
-          () => controller.abort(),
-          CONFIG.API.timeout.totalRequest
-        );
-        const res = await localFetch(url, { ...opts, signal: controller.signal });
-        clearTimeout(timeout);
-
-        if (res.status === 429 || res.status === 503) {
-          const ra = getRetryAfterSeconds(res);
-          const wait =
-            (ra ? ra * 1000 : Math.min(delayMs, CONFIG.retry.MAX_BACKOFF)) +
-            Math.floor(Math.random() * 500);
-          logger.warn(
-            `${label}: ${res.status} → tunggu ${Math.round(wait / 1000)} detik (Retry-After=${ra ?? "-"})`
-          );
-          await delay(wait);
-          delayMs = Math.min(
-            delayMs * CONFIG.retry.BACKOFF_MULTIPLIER,
-            CONFIG.retry.MAX_BACKOFF
-          );
-          continue;
-        }
-
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res;
-      } catch (err) {
-        const msg = err.name === "AbortError" ? "Timeout" : err.message;
-        logger.debug(`[${label}] attempt ${attempt}/${maxAttempts} → ${msg}`);
-
-        if (attempt === maxAttempts) throw err;
-
-        await delay(delayMs + Math.floor(Math.random() * 400));
-        delayMs = Math.min(
-          delayMs * CONFIG.retry.BACKOFF_MULTIPLIER,
-          CONFIG.retry.MAX_BACKOFF
-        );
-      }
-    }
-  }
-
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      // 1) GET halaman awal (ambil CSRF, captcha fragment)
-      const getRes = await smartFetch(
-        apiUrl,
-        {
-          method: "GET",
-          headers: buildBrowserHeaders(apiUrl, { "User-Agent": selectedUA }),
-        },
-        "GET_PAGE"
-      );
-      const html = await getRes.text();
+      const jar = CONFIG.session.FRESH_SESSION_PER_KTP
+        ? new CookieJar()
+        : getOrCreateSession(item.ktp);
 
+      const localFetch = fetchCookie(undiciFetch, jar);
+
+      // 1️⃣ GET halaman awal
+      const pageRes = await localFetch(apiUrl, {
+        method: "GET",
+        headers: {
+          "User-Agent": CONFIG.headers.USER_AGENT,
+          Accept: CONFIG.headers.ACCEPT,
+          "Accept-Language": CONFIG.headers.ACCEPT_LANGUAGE,
+          "Accept-Encoding": CONFIG.headers.ACCEPT_ENCODING,
+          DNT: "1",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "same-origin",
+          "Sec-Fetch-User": "?1",
+          Connection: "keep-alive",
+          "Upgrade-Insecure-Requests": "1",
+        },
+      });
+
+      const html = await pageRes.text();
+
+      // Save halaman
       if (html.length <= CONFIG.performance.MAX_HTML_SIZE) {
         logger.savePage(item.ktp, html);
       }
 
-      if (/\b(TUTUP|MAAF)\b/i.test(html)) {
+      // Check if pendaftaran tutup
+      if (html.toUpperCase().includes("TUTUP") || html.toUpperCase().includes("MAAF")) {
         throw new Error("Pendaftaran ditutup");
       }
 
-      const token = extractCsrf(html);
-      if (!token) {
-        if (attempt < maxAttempts) {
-          logger.warn("CSRF token tidak ditemukan, coba ulang...");
-          await delay(300 + Math.floor(Math.random() * 600));
-          continue;
-        } else {
-          throw new Error("_token tidak ditemukan");
-        }
-      }
+      // Extract token CSRF
+      const tokenMatch = html.match(/name="_token"\s+value="([^"]+)"/i);
+      if (!tokenMatch) throw new Error("_token tidak ditemukan");
+      const token = tokenMatch[1];
 
-      const captchaMatch = html.match(
-        /<div[^>]+id=["']captcha-box["'][^>]*>([\s\S]*?)<\/div>/i
-      );
+      // Extract captcha
+      const captchaMatch = html.match(/<div[^>]+id=["']captcha-box["'][^>]*>([\s\S]*?)<\/div>/i);
       const captcha = captchaMatch
         ? captchaMatch[1].replace(/[\s\r\n\t]+/g, "").trim()
         : "";
 
-      // 2) reCAPTCHA v3 (opsional)
+      // 🤖 GET reCAPTCHA v3 TOKEN
       let recaptchaToken = null;
       if (CONFIG.RECAPTCHA.ENABLED) {
         logger.debug(`🤖 Mengambil reCAPTCHA token untuk ${item.ktp}...`);
-        recaptchaToken = await getRecaptchaToken(
-          apiUrl,
-          CONFIG.RECAPTCHA.SITEKEY
-        );
+        recaptchaToken = await getRecaptchaToken(apiUrl, CONFIG.RECAPTCHA.SITEKEY);
+        
         if (!recaptchaToken) {
-          logger.warn(
-            `⚠️  reCAPTCHA token gagal untuk ${item.ktp}, lanjut tanpa token`
-          );
+          logger.warn(`⚠️  reCAPTCHA token gagal untuk ${item.ktp}, lanjut tanpa token`);
         } else {
           logger.debug(`✅ reCAPTCHA token berhasil untuk ${item.ktp}`);
         }
       }
 
-      // 3) POST submit
+      // Prepare payload dengan reCAPTCHA token
       const payload = {
         name: item.name,
         ktp: item.ktp,
@@ -711,35 +641,39 @@ async function postData(item, apiUrl, logger) {
         check_2: "on",
         _token: token,
       };
-      if (recaptchaToken) payload["g-recaptcha-response"] = recaptchaToken;
 
-      logger.debug(
-        `📤 Kirim: ${item.ktp}|${item.name} (Attempt ${attempt}/${maxAttempts})`
-      );
+      // Tambah reCAPTCHA response jika ada
+      if (recaptchaToken) {
+        payload["g-recaptcha-response"] = recaptchaToken;
+      }
 
-      const postHeaders = buildBrowserHeaders(apiUrl, {
-        "User-Agent": selectedUA,
-        "Content-Type": "application/x-www-form-urlencoded",
-        Referer: apiUrl,
-      });
+      logger.debug(`📤 Kirim: ${item.ktp}|${item.name} (Attempt ${attempt}/${maxAttempts})`);
 
-      const postRes = await smartFetch(
-        apiUrl,
-        {
-          method: "POST",
-          headers: postHeaders,
-          body: new URLSearchParams(payload).toString(),
+      // 2️⃣ POST submit
+      const postRes = await localFetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent": CONFIG.headers.USER_AGENT,
+          Referer: apiUrl,
+          Accept: CONFIG.headers.ACCEPT,
+          "Accept-Language": CONFIG.headers.ACCEPT_LANGUAGE,
+          "Accept-Encoding": CONFIG.headers.ACCEPT_ENCODING,
+          DNT: "1",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "same-origin",
+          Connection: "keep-alive",
+          "Upgrade-Insecure-Requests": "1",
         },
-        "POST_SUBMIT"
-      );
+        body: new URLSearchParams(payload).toString(),
+      });
 
       const postHtml = await postRes.text();
 
-      // Sukses
-      if (/Pendaftaran\s+Berhasil/i.test(postHtml)) {
-        const noMatch = postHtml.match(
-          /Nomor\s+Antrian:\s*([A-Z0-9]+\s*[A-Z]-\d+)/i
-        );
+      // Check success
+      if (postHtml.includes("Pendaftaran Berhasil")) {
+        const noMatch = postHtml.match(/Nomor\s+Antrian:\s*([A-Z0-9]+\s*[A-Z]-\d+)/i);
         const nomor = noMatch ? noMatch[1] : "Nomor tidak terbaca";
         logger.success(item.ktp, item.name, nomor);
 
@@ -752,36 +686,22 @@ async function postData(item, apiUrl, logger) {
         };
       }
 
-      // 419/token mismatch
-      if (/419|Page\s+Expired|TokenMismatch/i.test(postHtml)) {
+      // Check token expired
+      if (
+        postHtml.includes("419") ||
+        postHtml.includes("Page Expired") ||
+        postHtml.includes("TokenMismatch")
+      ) {
         if (attempt < maxAttempts) {
-          logger.warn("Token mismatch/expired, refresh dan coba ulang...");
-          await delay(300 + Math.floor(Math.random() * 700));
+          await delay(Math.floor(Math.random() * 600) + 300);
           continue;
         } else {
           throw new Error("Token expired berulang");
         }
       }
 
-      // Sudah terdaftar?
-      const alreadyMatch = postHtml.match(
-        /sudah\s+terdaftar|sudah\s+melakukan\s+pendaftaran/i
-      );
-      if (alreadyMatch) {
-        logger.warn(`Data ${item.ktp} terdeteksi sudah terdaftar`);
-        return {
-          ...payload,
-          status: "OK",
-          info: "Sudah terdaftar",
-          error_message: "",
-          recaptcha_used: !!recaptchaToken,
-        };
-      }
-
-      // Ambil pesan error
-      const errMatch = postHtml.match(
-        /<div class="alert alert-danger"[^>]*>([\s\S]*?)<\/div>/i
-      );
+      // Extract error message
+      const errMatch = postHtml.match(/<div class="alert alert-danger"[^>]*>([\s\S]*?)<\/div>/i);
       const errMsg = errMatch
         ? errMatch[1].replace(/<[^>]+>/g, "").trim() || "Validasi gagal"
         : "Error tidak dikenal";
@@ -803,8 +723,6 @@ async function postData(item, apiUrl, logger) {
 
       if (attempt === maxAttempts) {
         logger.error(item.ktp, item.name, msg);
-      } else {
-        await delay(400 + Math.floor(Math.random() * 700));
       }
     }
   }
@@ -819,9 +737,7 @@ async function postData(item, apiUrl, logger) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-/**
- * 💾 SAVE RESULTS
- */
+// 💾 SAVE RESULTS
 // ═══════════════════════════════════════════════════════════════════════════
 
 function saveResults(data, csvFileName) {
@@ -856,49 +772,15 @@ function saveResults(data, csvFileName) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-/**
- * ⚖️ ADAPTIVE CONCURRENCY
- */
+// 🧩 MAIN BATCH EXECUTION (WITH ANTI-DOWN)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function computeNextConcurrency(metrics, current, baseLimit) {
-  const windowSize = 20; // evaluasi per 20 request
-  if (metrics.responseTimes.length < windowSize) return current;
-
-  const recentTimes = metrics.responseTimes.slice(-windowSize);
-  const recentAvg = recentTimes.reduce((a, b) => a + b, 0) / recentTimes.length;
-
-  const recentTotal = Math.min(windowSize, metrics.totalRequests);
-  const totalSoFar = metrics.successCount + metrics.errorCount;
-  const considered = Math.min(recentTotal, totalSoFar);
-  // Approximate recent error rate using last window
-  const recentErrors = metrics.errorCount - Math.max(0, metrics.errorCount - considered);
-  const errRate = recentErrors / (considered || 1);
-
-  let next = current;
-
-  if (errRate >= 0.35 || recentAvg > 3500) {
-    next = Math.max(1, current - 1);
-  } else if (errRate <= 0.1 && recentAvg < 1800) {
-    next = Math.min(baseLimit + 2, current + 1);
-  }
-
-  return next;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-/**
- * 🧩 MAIN BATCH EXECUTION
- */
-// ═══════════════════════════════════════════════════════════════════════════
-
-async function runBatch(apiUrl, csvFile, logger) {
+async function runBatch(apiUrl, csvFile, logger, progressManager) {
   logger.info("═══════════════════════════════════════════════════════════");
   logger.info(`🚀 Mulai batch untuk ${apiUrl}`);
   logger.info(`📁 CSV File: ${csvFile}`);
-  logger.info(
-    `🤖 reCAPTCHA: ${CONFIG.RECAPTCHA.ENABLED ? "ENABLED" : "DISABLED"}`
-  );
+  logger.info(`🤖 reCAPTCHA: ${CONFIG.RECAPTCHA.ENABLED ? "ENABLED" : "DISABLED"}`);
+  logger.info(`🛡️  Anti-Down: ${CONFIG.antiDown.ENABLED ? "ENABLED" : "DISABLED"}`);
 
   const startTime = Date.now();
   let processedData = [];
@@ -912,7 +794,12 @@ async function runBatch(apiUrl, csvFile, logger) {
   };
 
   try {
-    await waitUntilServerUp(apiUrl, logger);
+    // 🆕 Wait dengan anti-down support
+    if (CONFIG.antiDown.ENABLED) {
+      await waitUntilServerUp(apiUrl, logger, CONFIG.antiDown.RETRY_INTERVAL);
+    } else {
+      await waitUntilServerUp(apiUrl, logger);
+    }
 
     // Init browser jika reCAPTCHA enabled
     if (CONFIG.RECAPTCHA.ENABLED && CONFIG.RECAPTCHA.USE_PUPPETEER) {
@@ -921,42 +808,27 @@ async function runBatch(apiUrl, csvFile, logger) {
         await initBrowser();
         logger.info("✅ Puppeteer browser ready");
       } catch (err) {
-        logger.warn(
-          `⚠️  Puppeteer init failed: ${err.message}. Lanjut tanpa reCAPTCHA.`
-        );
+        logger.warn(`⚠️  Puppeteer init failed: ${err.message}. Lanjut tanpa reCAPTCHA.`);
         CONFIG.RECAPTCHA.USE_PUPPETEER = false;
       }
     }
 
-    // Load data + dedup by KTP
-    let data = readCSVOptimized(csvFile);
-    const seen = new Set();
-    data = data.filter((r) => {
-      if (!r.ktp) return false;
-      if (seen.has(r.ktp)) return false;
-      seen.add(r.ktp);
-      return true;
-    });
-
+    const data = readCSVOptimized(csvFile);
     const now = new Date();
     const isPeakTime =
       now.getHours() === CONFIG.concurrency.PEAK_HOUR &&
       now.getMinutes() < CONFIG.concurrency.PEAK_MINUTE_RANGE;
-    const baseParallelLimit = isPeakTime
+    const parallelLimit = isPeakTime
       ? CONFIG.concurrency.PEAK_LIMIT
       : CONFIG.concurrency.PARALLEL_LIMIT;
 
-    logger.info(
-      `Memproses ${data.length} entri (initial parallel limit: ${baseParallelLimit})`
-    );
+    logger.info(`Memproses ${data.length} entri (parallel limit: ${parallelLimit})`);
 
-    // 🚀 BOTTLENECK
+    // Bottleneck limiter
     const limiter = new Bottleneck({
-      maxConcurrent: baseParallelLimit,
-      minTime: 100, // Min time antara request (ms)
+      maxConcurrent: parallelLimit,
+      minTime: 100,
     });
-
-    let currentConcurrency = baseParallelLimit;
 
     const tasks = [];
 
@@ -981,24 +853,18 @@ async function runBatch(apiUrl, csvFile, logger) {
 
           processedData.push(result);
 
-          // Adaptive concurrency setiap 10 request
-          if (metrics.totalRequests % 10 === 0) {
-            const next = computeNextConcurrency(
-              metrics,
-              currentConcurrency,
-              baseParallelLimit
-            );
-            if (next !== currentConcurrency) {
-              limiter.updateSettings({ maxConcurrent: next });
-              logger.info(`⚖️  Update concurrency: ${currentConcurrency} → ${next}`);
-              currentConcurrency = next;
-            }
+          // 🆕 Save progress
+          if (progressManager) {
+            progressManager.save({
+              timestamp: new Date().toISOString(),
+              totalRequests: metrics.totalRequests,
+              successCount: metrics.successCount,
+              errorCount: metrics.errorCount,
+              processedData: processedData,
+            });
           }
 
-          if (
-            processedData.length % CONFIG.performance.MAX_PROCESSED_DATA ===
-            0
-          ) {
+          if (processedData.length % CONFIG.performance.MAX_PROCESSED_DATA === 0) {
             saveResults(processedData, csvFile);
             processedData = [];
           }
@@ -1007,7 +873,7 @@ async function runBatch(apiUrl, csvFile, logger) {
         })
       );
 
-      if ((i + 1) % baseParallelLimit === 0 && i + 1 < data.length) {
+      if ((i + 1) % parallelLimit === 0 && i + 1 < data.length) {
         await delay(randomDelay());
       }
     }
@@ -1016,16 +882,30 @@ async function runBatch(apiUrl, csvFile, logger) {
 
     if (processedData.length > 0) {
       const result = saveResults(processedData, csvFile);
-      logger.info(
-        `Hasil disimpan ke ${path.basename(result.csvFile)} dan ${path.basename(
-          result.jsonFile
-        )}`
-      );
+      logger.info(`Hasil disimpan ke ${path.basename(result.csvFile)} dan ${path.basename(result.jsonFile)}`);
+    }
+
+    // 🆕 Clear progress file setelah sukses
+    if (progressManager) {
+      progressManager.clear();
     }
 
     logger.printMetrics(metrics);
   } catch (err) {
     logger.error("BATCH", "MAIN", err.message);
+    
+    // 🆕 Save progress jika ada error (untuk recovery)
+    if (progressManager) {
+      progressManager.save({
+        timestamp: new Date().toISOString(),
+        error: err.message,
+        totalRequests: metrics.totalRequests,
+        successCount: metrics.successCount,
+        errorCount: metrics.errorCount,
+        processedData: processedData,
+      });
+      logger.warn(`📊 Progress tersimpan untuk recovery. Jalankan ulang batch kapan saja.`);
+    }
   } finally {
     // Close browser
     if (CONFIG.RECAPTCHA.ENABLED && CONFIG.RECAPTCHA.USE_PUPPETEER) {
@@ -1038,9 +918,7 @@ async function runBatch(apiUrl, csvFile, logger) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-/**
- * ⏰ SCHEDULER
- */
+// ⏰ SCHEDULER
 // ═══════════════════════════════════════════════════════════════════════════
 
 function getDelayToTime(hour, minute = 0, second = 0) {
@@ -1059,21 +937,11 @@ function getDelayToTime(hour, minute = 0, second = 0) {
   return target - now;
 }
 
-async function scheduleBatch(
-  apiUrl,
-  csvFile,
-  logger,
-  scheduleHour,
-  scheduleMinute,
-  scheduleSecond
-) {
+async function scheduleBatch(apiUrl, csvFile, logger, progressManager, scheduleHour, scheduleMinute, scheduleSecond) {
   logger.info(
-    `🕒 Batch dijadwalkan pukul ${String(scheduleHour).padStart(
-      2,
-      "0"
-    )}:${String(scheduleMinute).padStart(2, "0")}:${String(
-      scheduleSecond
-    ).padStart(2, "0")}`
+    `🕒 Batch dijadwalkan pukul ${String(scheduleHour).padStart(2, "0")}:${String(
+      scheduleMinute
+    ).padStart(2, "0")}:${String(scheduleSecond).padStart(2, "0")}`
   );
 
   let isRunning = false;
@@ -1081,25 +949,22 @@ async function scheduleBatch(
   setInterval(async () => {
     if (isRunning) return;
 
-    const delayMs = getDelayToTime(
-      scheduleHour,
-      scheduleMinute,
-      scheduleSecond
-    );
+    const delayMs = getDelayToTime(scheduleHour, scheduleMinute, scheduleSecond);
     const hours = Math.floor(delayMs / 3600000);
     const minutes = Math.floor((delayMs % 3600000) / 60000);
     const seconds = Math.floor((delayMs % 60000) / 1000);
 
     process.stdout.write(
-      `\r🕒 Waktu tunda → ${String(hours).padStart(2, "0")}:${String(
-        minutes
-      ).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+      `\r🕒 Waktu tunda → ${String(hours).padStart(2, "0")}:${String(minutes).padStart(
+        2,
+        "0"
+      )}:${String(seconds).padStart(2, "0")}`
     );
 
     if (hours === 0 && minutes === 0 && seconds === 0) {
       console.log("\n");
       isRunning = true;
-      await runBatch(apiUrl, csvFile, logger).catch((err) =>
+      await runBatch(apiUrl, csvFile, logger, progressManager).catch((err) =>
         logger.error("BATCH", "SCHEDULER", err.message)
       );
       isRunning = false;
@@ -1108,9 +973,7 @@ async function scheduleBatch(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-/**
- * 🛑 GRACEFUL SHUTDOWN
- */
+// 🛑 GRACEFUL SHUTDOWN
 // ═══════════════════════════════════════════════════════════════════════════
 
 let shutdownInProgress = false;
@@ -1121,7 +984,7 @@ process.on("SIGINT", async () => {
 
   console.log("\n");
   console.log("🛑 Shutting down gracefully...");
-
+  
   if (browser) {
     console.log("🌐 Closing browser...");
     await closeBrowser();
@@ -1132,9 +995,7 @@ process.on("SIGINT", async () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-/**
- * ▶️  MAIN ENTRY POINT
- */
+// ▶️  MAIN ENTRY POINT
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function main() {
@@ -1156,23 +1017,19 @@ async function main() {
     CONFIG.paths.BATCH_LOG
   );
 
+  // 🆕 Initialize progress manager
+  const progressManager = new ProgressManager(CONFIG.paths.PROGRESS_FILE);
+
   checkCSVFile(csvFile, logger);
-  logger.info(`Server URL: ${apiUrl}`);
+
   if (mode === "0") {
-    logger.info("🔥 Mode: Immediate Execution ");
-    await runBatch(apiUrl, csvFile, logger).catch((err) =>
+    logger.info("🔥 Mode: Immediate Execution");
+    await runBatch(apiUrl, csvFile, logger, progressManager).catch((err) =>
       logger.error("BATCH", "MAIN", err.message)
     );
   } else {
-    logger.info("🕒 Mode: Scheduled Execution ");
-    await scheduleBatch(
-      apiUrl,
-      csvFile,
-      logger,
-      scheduleHour,
-      scheduleMinute,
-      scheduleSecond
-    );
+    logger.info("🕒 Mode: Scheduled Execution");
+    await scheduleBatch(apiUrl, csvFile, logger, progressManager, scheduleHour, scheduleMinute, scheduleSecond);
   }
 }
 
