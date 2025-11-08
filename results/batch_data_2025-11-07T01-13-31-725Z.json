@@ -1,0 +1,20 @@
+[
+  {
+    "name": "ASEP HERI RISDIYANTO",
+    "ktp": "3171012312920005",
+    "phone": "085160344321",
+    "status": "ERROR",
+    "error_message": "Pendaftaran ditutup",
+    "info": "",
+    "recaptcha_used": false
+  },
+  {
+    "name": "NUNI LESTARI",
+    "ktp": "3216054801960004",
+    "phone": "085183185003",
+    "status": "ERROR",
+    "error_message": "Pendaftaran ditutup",
+    "info": "",
+    "recaptcha_used": false
+  }
+]

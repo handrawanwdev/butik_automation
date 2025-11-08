@@ -240,3 +240,62 @@
 [2025-11-07 08:01:54] ⚠️  WARN: Server masih down, ulangi cek dalam 5 detik...
 [2025-11-07 08:02:08] ⚠️  WARN: Server masih down, ulangi cek dalam 5 detik...
 [2025-11-07 08:02:21] ⚠️  WARN: Server masih down, ulangi cek dalam 5 detik...
+[2025-11-07 08:02:36] ⚠️  WARN: Server masih down, ulangi cek dalam 5 detik...
+[2025-11-07 08:02:46] ℹ️  INFO: Cek file CSV: batch_data.csv
+[2025-11-07 08:02:46] ℹ️  INFO: Ditemukan 2 baris data.
+[2025-11-07 08:02:46] ℹ️  INFO: File batch_data.csv valid dengan 2 baris data.
+[2025-11-07 08:02:46] ℹ️  INFO: 🕒 Mode: Scheduled Execution
+[2025-11-07 08:02:46] ℹ️  INFO: 🕒 Batch dijadwalkan pukul 07:30:00
+[2025-11-07 08:02:57] ℹ️  INFO: Cek file CSV: batch_data.csv
+[2025-11-07 08:02:57] ℹ️  INFO: Ditemukan 2 baris data.
+[2025-11-07 08:02:57] ℹ️  INFO: File batch_data.csv valid dengan 2 baris data.
+[2025-11-07 08:02:57] ℹ️  INFO: 🕒 Mode: Scheduled Execution
+[2025-11-07 08:02:57] ℹ️  INFO: 🕒 Batch dijadwalkan pukul 15:00:00
+[2025-11-07 08:03:21] ℹ️  INFO: Cek file CSV: batch_data.csv
+[2025-11-07 08:03:21] ℹ️  INFO: Ditemukan 2 baris data.
+[2025-11-07 08:03:21] ℹ️  INFO: File batch_data.csv valid dengan 2 baris data.
+[2025-11-07 08:03:21] ℹ️  INFO: 🕒 Mode: Scheduled Execution
+[2025-11-07 08:03:21] ℹ️  INFO: 🕒 Batch dijadwalkan pukul 08:04:00
+[2025-11-07 08:03:59] ℹ️  INFO: ═══════════════════════════════════════════════════════════
+[2025-11-07 08:03:59] ℹ️  INFO: 🚀 Mulai batch untuk https://antrijktpr6.com
+[2025-11-07 08:03:59] ℹ️  INFO: 📁 CSV File: batch_data.csv
+[2025-11-07 08:03:59] ℹ️  INFO: 🤖 reCAPTCHA: ENABLED
+[2025-11-07 08:03:59] ℹ️  INFO: 🛡️  Anti-Down: ENABLED
+[2025-11-07 08:04:07] 🔴 SERVER DOWN: Server tidak merespons (https://antrijktpr6.com)
+[2025-11-07 08:13:11] 🟢 SERVER UP: Server kembali online (down selama 543s)
+[2025-11-07 08:13:11] ℹ️  INFO: 🌐 Initializing Puppeteer browser...
+[2025-11-07 08:13:12] ℹ️  INFO: ✅ Puppeteer browser ready
+[2025-11-07 08:13:12] ℹ️  INFO: Memproses 2 entri (parallel limit: 3)
+[2025-11-07 08:13:30] ❌ ERROR | 3171012312920005|ASEP HERI RISDIYANTO: Pendaftaran ditutup
+[2025-11-07 08:13:31] ❌ ERROR | 3216054801960004|NUNI LESTARI: Pendaftaran ditutup
+[2025-11-07 08:13:31] ℹ️  INFO: Hasil disimpan ke batch_data_2025-11-07T01-13-31-725Z.csv dan batch_data_2025-11-07T01-13-31-725Z.json
+
+╔════════════════════════════════════════════════════╗
+║             📊 BATCH METRICS SUMMARY               ║
+╠════════════════════════════════════════════════════╣
+║ Total Requests    : 2                              ║
+║ Success           : 0                              ║
+║ Failed            : 2                              ║
+║ Success Rate      : 0.00%                          ║
+║ Avg Response Time : 18926.00ms                     ║
+║ Duration          : 571.86s                        ║
+║ Finish Time       : 2025-11-07 08:13:31              ║
+╚════════════════════════════════════════════════════╝
+
+[2025-11-07 08:13:31] ℹ️  INFO: 🌐 Closing Puppeteer browser...
+[2025-11-07 08:13:31] ℹ️  INFO: ═══════════════════════════════════════════════════════════
+[2025-11-08 16:46:27] ℹ️  INFO: Cek file CSV: batch_data.csv
+[2025-11-08 16:46:27] ℹ️  INFO: Ditemukan 2 baris data.
+[2025-11-08 16:46:27] ℹ️  INFO: File batch_data.csv valid dengan 2 baris data.
+[2025-11-08 16:46:27] ℹ️  INFO: 🕒 Mode: Scheduled Execution
+[2025-11-08 16:46:27] ℹ️  INFO: 🕒 Batch dijadwalkan pukul 15:00:00
+[2025-11-08 16:47:20] ℹ️  INFO: Cek file CSV: batch_data.csv
+[2025-11-08 16:47:20] ℹ️  INFO: Ditemukan 2 baris data.
+[2025-11-08 16:47:20] ℹ️  INFO: File batch_data.csv valid dengan 2 baris data.
+[2025-11-08 16:47:20] ℹ️  INFO: 🕒 Mode: Scheduled Execution
+[2025-11-08 16:47:20] ℹ️  INFO: 🕒 Batch dijadwalkan pukul 07:30:00
+[2025-11-08 16:48:12] ℹ️  INFO: Cek file CSV: batch_data.csv
+[2025-11-08 16:48:12] ℹ️  INFO: Ditemukan 2 baris data.
+[2025-11-08 16:48:12] ℹ️  INFO: File batch_data.csv valid dengan 2 baris data.
+[2025-11-08 16:48:12] ℹ️  INFO: 🕒 Mode: Scheduled Execution
+[2025-11-08 16:48:12] ℹ️  INFO: 🕒 Batch dijadwalkan pukul 07:30:00

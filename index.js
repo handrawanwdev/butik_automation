@@ -2,6 +2,7 @@
  * 🚀 BATCH REGISTRATION SYSTEM v2.1
  * Anti-Down Feature: Auto resume jika website sedang down
  * Fixed: Using Bottleneck instead of p-limit for CommonJS compatibility
+ * Added: puppeteer-extra + stealth plugin support (auto fallback to puppeteer)
  */
 
 const fs = require("fs");
@@ -13,12 +14,21 @@ const { fetch: undiciFetch } = require("undici");
 const { CookieJar } = require("tough-cookie");
 const fetchCookie = require("fetch-cookie").default;
 
-// Optional: Puppeteer untuk reCAPTCHA v3
+// Optional: Puppeteer (priority: puppeteer-extra + stealth)
 let puppeteer;
 try {
-  puppeteer = require("puppeteer");
+  const puppeteerExtra = require("puppeteer-extra");
+  const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+  puppeteerExtra.use(StealthPlugin());
+  puppeteer = puppeteerExtra;
+  console.log("✅ puppeteer-extra + stealth plugin aktif");
 } catch (e) {
-  // Puppeteer tidak required
+  try {
+    puppeteer = require("puppeteer");
+    console.log("ℹ️ puppeteer-extra tidak ditemukan. Fallback ke puppeteer biasa.");
+  } catch (e2) {
+    console.log("⚠️ Puppeteer tidak tersedia. Fitur reCAPTCHA berbasis browser akan dinonaktifkan.");
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -102,7 +112,7 @@ const CONFIG = {
 
   // Headers
   headers: {
-    USER_AGENT: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    USER_AGENT: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, seperti Gecko) Chrome/124.0.0.0 Safari/537.36",
     ACCEPT: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     ACCEPT_LANGUAGE: "en-US,en;q=0.5",
     ACCEPT_ENCODING: "gzip, deflate, br",
@@ -118,6 +128,12 @@ const CONFIG = {
     return options;
   },
 };
+
+// Jika puppeteer tidak tersedia tapi RECAPTCHA pakai puppeteer diaktifkan, matikan otomatis
+if (!puppeteer && CONFIG.RECAPTCHA.USE_PUPPETEER) {
+  CONFIG.RECAPTCHA.USE_PUPPETEER = false;
+  console.log("⚠️ RECAPTCHA via Puppeteer dimatikan (module tidak tersedia).");
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 📝 LOGGER CLASS
@@ -338,7 +354,7 @@ async function waitUntilServerUp(url, logger, retryDelay = 5000) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 💾 PROGRESS MANAGEMENT (NEW)
+/* 💾 PROGRESS MANAGEMENT (NEW) */
 // ═══════════════════════════════════════════════════════════════════════════
 
 class ProgressManager {
@@ -378,7 +394,7 @@ class ProgressManager {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🤖 RECAPTCHA V3 TOKEN GENERATOR (PUPPETEER)
+/* 🤖 RECAPTCHA V3 TOKEN GENERATOR (PUPPETEER) */
 // ═══════════════════════════════════════════════════════════════════════════
 
 let browser = null;
@@ -386,7 +402,7 @@ let browser = null;
 async function initBrowser() {
   if (!puppeteer) {
     throw new Error(
-      "Puppeteer tidak terinstall. Jalankan: npm install puppeteer"
+      "Puppeteer tidak terinstall. Jalankan: npm install puppeteer-extra puppeteer-extra-plugin-stealth"
     );
   }
 
@@ -427,7 +443,7 @@ async function getRecaptchaToken(pageUrl, sitekey) {
               .then((token) => {
                 resolve(token);
               })
-              .catch((err) => {
+              .catch(() => {
                 resolve(null);
               });
           });
@@ -453,7 +469,7 @@ async function closeBrowser() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔁 FETCH WITH RETRY
+/* 🔁 FETCH WITH RETRY */
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function fetchWithRetry(url, opts = {}, retryCount = CONFIG.retry.MAX_RETRY, logger = null) {
@@ -488,7 +504,7 @@ async function fetchWithRetry(url, opts = {}, retryCount = CONFIG.retry.MAX_RETR
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 📂 CSV READER & CACHE
+/* 📂 CSV READER & CACHE */
 // ═══════════════════════════════════════════════════════════════════════════
 
 let csvCache = null;
@@ -540,7 +556,7 @@ function checkCSVFile(file, logger) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🧑 SESSION MANAGEMENT
+/* 🧑 SESSION MANAGEMENT */
 // ═══════════════════════════════════════════════════════════════════════════
 
 const sessionCache = new Map();
@@ -562,7 +578,7 @@ function getOrCreateSession(ktp) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 📤 POST DATA WITH RECAPTCHA V3 & ANTI-DOWN
+/* 📤 POST DATA WITH RECAPTCHA V3 & ANTI-DOWN */
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function postData(item, apiUrl, logger) {
@@ -623,7 +639,7 @@ async function postData(item, apiUrl, logger) {
       if (CONFIG.RECAPTCHA.ENABLED) {
         logger.debug(`🤖 Mengambil reCAPTCHA token untuk ${item.ktp}...`);
         recaptchaToken = await getRecaptchaToken(apiUrl, CONFIG.RECAPTCHA.SITEKEY);
-        
+
         if (!recaptchaToken) {
           logger.warn(`⚠️  reCAPTCHA token gagal untuk ${item.ktp}, lanjut tanpa token`);
         } else {
@@ -679,10 +695,10 @@ async function postData(item, apiUrl, logger) {
 
         return {
           ...payload,
-          status: "OK",
-          info: `Pendaftaran berhasil, Nomor Antrian: ${nomor}`,
-          error_message: "",
-          recaptcha_used: !!recaptchaToken,
+            status: "OK",
+            info: `Pendaftaran berhasil, Nomor Antrian: ${nomor}`,
+            error_message: "",
+            recaptcha_used: !!recaptchaToken,
         };
       }
 
@@ -737,7 +753,7 @@ async function postData(item, apiUrl, logger) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 💾 SAVE RESULTS
+/* 💾 SAVE RESULTS */
 // ═══════════════════════════════════════════════════════════════════════════
 
 function saveResults(data, csvFileName) {
@@ -772,7 +788,7 @@ function saveResults(data, csvFileName) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🧩 MAIN BATCH EXECUTION (WITH ANTI-DOWN)
+/* 🧩 MAIN BATCH EXECUTION (WITH ANTI-DOWN) */
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function runBatch(apiUrl, csvFile, logger, progressManager) {
@@ -893,7 +909,7 @@ async function runBatch(apiUrl, csvFile, logger, progressManager) {
     logger.printMetrics(metrics);
   } catch (err) {
     logger.error("BATCH", "MAIN", err.message);
-    
+
     // 🆕 Save progress jika ada error (untuk recovery)
     if (progressManager) {
       progressManager.save({
@@ -918,7 +934,7 @@ async function runBatch(apiUrl, csvFile, logger, progressManager) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ⏰ SCHEDULER
+/* ⏰ SCHEDULER */
 // ═══════════════════════════════════════════════════════════════════════════
 
 function getDelayToTime(hour, minute = 0, second = 0) {
@@ -973,7 +989,7 @@ async function scheduleBatch(apiUrl, csvFile, logger, progressManager, scheduleH
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🛑 GRACEFUL SHUTDOWN
+/* 🛑 GRACEFUL SHUTDOWN */
 // ═══════════════════════════════════════════════════════════════════════════
 
 let shutdownInProgress = false;
@@ -984,7 +1000,7 @@ process.on("SIGINT", async () => {
 
   console.log("\n");
   console.log("🛑 Shutting down gracefully...");
-  
+
   if (browser) {
     console.log("🌐 Closing browser...");
     await closeBrowser();
@@ -995,7 +1011,7 @@ process.on("SIGINT", async () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ▶️  MAIN ENTRY POINT
+/* ▶️  MAIN ENTRY POINT */
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function main() {
