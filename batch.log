@@ -363,3 +363,9 @@
 [2025-11-10 09:18:56] ℹ️  INFO: 🌐 Initializing Puppeteer browser...
 [2025-11-10 09:18:56] ℹ️  INFO: ✅ Puppeteer browser ready
 [2025-11-10 09:18:56] ℹ️  INFO: Memproses 37 entri (parallel limit awal: 6)
+[2025-11-10 09:19:06] 🔧 DEBUG: [1/5] fetch failed
+[2025-11-10 09:19:07] 🔧 DEBUG: [1/5] fetch failed
+[2025-11-10 09:19:07] 🔧 DEBUG: [1/5] fetch failed
+[2025-11-10 09:19:07] 🔧 DEBUG: [1/5] fetch failed
+[2025-11-10 09:19:07] 🔧 DEBUG: [1/5] fetch failed
+[2025-11-10 09:19:07] 🔧 DEBUG: [1/5] fetch failed
