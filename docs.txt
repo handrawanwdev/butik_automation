@@ -1,0 +1,19 @@
+node index.js \
+  --mode=0 \
+  --csv=data_hari_ini.csv \
+  --url=https://antrisimatupang.com \
+  --no-wait \
+  --parallel-limit=6 \
+  --peak-limit=3 \
+  --max-retries=5 \
+  --retry-delay=1500 \
+  --max-backoff=20000 \
+  --backoff-multiplier=2 \
+  --error-window=25 \
+  --error-threshold=0.5 \
+  --cooldown-ms=40000 \
+  --min-concurrency=1 \
+  --step-down=1 \
+  --step-up=1
+
+node index.js --mode=0 --csv=batch_data.csv --url=https://antrisimatupang.com --no-wait --parallel-limit=6 --peak-limit=3 --max-retries=5 --retry-delay=1500 --max-backoff=20000 --backoff-multiplier=2 --error-window=25 --error-threshold=0.5 --cooldown-ms=40000 --min-concurrency=1 --step-down=1 --step-up=1

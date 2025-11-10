@@ -1,3 +1,5 @@
 timestamp,ktp,name,error_message
 2025-11-07 08:13:30,3171012312920005,ASEP HERI RISDIYANTO,"Pendaftaran ditutup"
 2025-11-07 08:13:31,3216054801960004,NUNI LESTARI,"Pendaftaran ditutup"
+2025-11-10 08:30:13,BATCH,MAIN,"Server down terlalu lama: 3605s"
+2025-11-10 09:18:11,CSV,PARSER,"CSV tidak ditemukan: data_hari_ini.csv"

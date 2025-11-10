@@ -1,8 +1,14 @@
 /**
- * 🚀 BATCH REGISTRATION SYSTEM v2.1
+ * 🚀 BATCH REGISTRATION SYSTEM v2.2
  * Anti-Down Feature: Auto resume jika website sedang down
  * Fixed: Using Bottleneck instead of p-limit for CommonJS compatibility
  * Added: puppeteer-extra + stealth plugin support (auto fallback to puppeteer)
+ *
+ * UPDATE v2.2:
+ * - "no-wait" mechanism: jalankan tanpa menunggu server UP (CLI: --no-wait)
+ * - Semua request GET/POST menggunakan fetchWithRetry yang cookie-aware
+ * - Adaptive concurrency + cooldown global saat error-rate tinggi
+ * - Opsi CLI baru untuk tuning retry/backoff dan adaptive concurrency
  */
 
 const fs = require("fs");
@@ -62,7 +68,7 @@ const CONFIG = {
     PAGES_DIR: path.join(__dirname, "pages"),
     BATCH_LOG: path.join(__dirname, "batch.log"),
     RESULT_DIR: path.join(__dirname, "results"),
-    PROGRESS_FILE: path.join(__dirname, "batch_progress.json"), // NEW: Save progress
+    PROGRESS_FILE: path.join(__dirname, "batch_progress.json"), // Save progress
   },
 
   // Retry & Backoff
@@ -83,13 +89,25 @@ const CONFIG = {
     BATCH_DELAY_MAX: 900,
   },
 
+  // Adaptive Concurrency (NEW)
+  adaptive: {
+    ENABLED: true,
+    ERROR_WINDOW: 20,         // jumlah sample terakhir
+    ERROR_THRESHOLD: 0.6,     // jika error-rate >= 60% -> turunkan concurrency
+    COOLDOWN_MS: 30000,       // jeda global saat threshold terlampaui
+    MIN_CONCURRENCY: 1,
+    STEP_DOWN: 1,
+    STEP_UP: 1,               // naikkan perlahan saat recovery
+  },
+
   // 🆕 Anti-Down Configuration
   antiDown: {
-    ENABLED: true, // Aktifkan fitur anti-down
-    CHECK_INTERVAL: 10000, // Cek server setiap 10 detik saat down
-    MAX_DOWN_TIME: 3600000, // Maksimal menunggu 1 jam (bisa disable dengan 0)
-    RETRY_INTERVAL: 5000, // Retry cek server tiap 5 detik
-    LOG_VERBOSE: true, // Log setiap cek server
+    ENABLED: true,            // Aktifkan fitur anti-down (pre-flight)
+    WAIT_FOR_SERVER: true,    // Jika false -> jangan tunggu server up, jalankan batch langsung
+    CHECK_INTERVAL: 10000,    // Cek server setiap 10 detik saat down
+    MAX_DOWN_TIME: 3600000,   // Maksimal menunggu 1 jam (bisa disable dengan 0)
+    RETRY_INTERVAL: 5000,     // Retry cek server tiap 5 detik
+    LOG_VERBOSE: true,        // Log setiap cek server
   },
 
   // Session Management
@@ -112,18 +130,28 @@ const CONFIG = {
 
   // Headers
   headers: {
-    USER_AGENT: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, seperti Gecko) Chrome/124.0.0.0 Safari/537.36",
-    ACCEPT: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    USER_AGENT:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, seperti Gecko) Chrome/124.0.0.0 Safari/537.36",
+    ACCEPT:
+      "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     ACCEPT_LANGUAGE: "en-US,en;q=0.5",
     ACCEPT_ENCODING: "gzip, deflate, br",
   },
 
   // Parse CLI arguments
   parseArgs: (args = process.argv.slice(2)) => {
+    // Supports --flag and --key=value
     const options = {};
     args.forEach((arg) => {
-      const [k, v] = arg.split("=");
-      if (k && v) options[k.replace(/^--/, "")] = v;
+      if (!arg.startsWith("--")) return;
+      const idx = arg.indexOf("=");
+      if (idx === -1) {
+        options[arg.replace(/^--/, "")] = true;
+      } else {
+        const k = arg.slice(0, idx).replace(/^--/, "");
+        const v = arg.slice(idx + 1);
+        options[k] = v;
+      }
     });
     return options;
   },
@@ -211,7 +239,6 @@ class BatchLogger {
     fs.appendFileSync(this.batchLog, msg + "\n");
   }
 
-  // 🆕 Log untuk anti-down
   serverStatus(status, message) {
     const ts = this.timestamp();
     const icon = status === "UP" ? "🟢" : "🔴";
@@ -270,14 +297,6 @@ const randomDelay = () =>
 
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
-const timestamp = () => {
-  const d = new Date();
-  const pad = (n) => n.toString().padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-};
-
 async function isOnline() {
   try {
     await dns.resolve("google.com");
@@ -300,61 +319,8 @@ async function isServerUp(url) {
   }
 }
 
-// 🆕 ANTI-DOWN: Tunggu server sampai up dengan exponential backoff
-async function waitUntilServerUp(url, logger, retryDelay = 5000) {
-  let isDown = false;
-  let downStartTime = null;
-
-  while (true) {
-    const online = await isOnline();
-    if (!online) {
-      if (!isDown) {
-        isDown = true;
-        downStartTime = Date.now();
-        logger.serverStatus("DOWN", "Tidak ada koneksi internet");
-      }
-      logger.debug(
-        `⏳ Menunggu koneksi internet... (${Math.round(
-          (Date.now() - downStartTime) / 1000
-        )}s)`
-      );
-      await delay(retryDelay);
-      continue;
-    }
-
-    const serverUp = await isServerUp(url);
-    if (serverUp) {
-      if (isDown) {
-        const downDuration = Math.round((Date.now() - downStartTime) / 1000);
-        logger.serverStatus("UP", `Server kembali online (down selama ${downDuration}s)`);
-        isDown = false;
-      }
-      return;
-    }
-
-    if (!isDown) {
-      isDown = true;
-      downStartTime = Date.now();
-      logger.serverStatus("DOWN", `Server tidak merespons (${url})`);
-    }
-
-    const downDuration = Math.round((Date.now() - downStartTime) / 1000);
-
-    // Check max down time
-    if (CONFIG.antiDown.MAX_DOWN_TIME > 0 && downDuration > CONFIG.antiDown.MAX_DOWN_TIME / 1000) {
-      logger.warn(`⚠️  Server down terlalu lama (${downDuration}s), cek koneksi atau API URL`);
-      throw new Error(`Server down terlalu lama: ${downDuration}s`);
-    }
-
-    logger.debug(
-      `⏳ Menunggu server up... (${downDuration}s) - Cek ulang dalam ${retryDelay / 1000}s`
-    );
-    await delay(retryDelay + Math.random() * 2000);
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
-/* 💾 PROGRESS MANAGEMENT (NEW) */
+// 💾 PROGRESS MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════════════
 
 class ProgressManager {
@@ -394,7 +360,7 @@ class ProgressManager {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-/* 🤖 RECAPTCHA V3 TOKEN GENERATOR (PUPPETEER) */
+// 🤖 RECAPTCHA V3 TOKEN GENERATOR (PUPPETEER)
 // ═══════════════════════════════════════════════════════════════════════════
 
 let browser = null;
@@ -469,15 +435,21 @@ async function closeBrowser() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-/* 🔁 FETCH WITH RETRY */
+/* 🔁 FETCH WITH RETRY (cookie-aware) */
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function fetchWithRetry(url, opts = {}, retryCount = CONFIG.retry.MAX_RETRY, logger = null) {
+async function fetchWithRetry(
+  url,
+  opts = {},
+  retryCount = CONFIG.retry.MAX_RETRY,
+  logger = null,
+  fetcher = undiciFetch // bisa diganti dengan fetch-cookie(undiciFetch, jar)
+) {
   let delayMs = CONFIG.retry.RETRY_DELAY;
 
   for (let attempt = 1; attempt <= retryCount; attempt++) {
     if (!(await isOnline())) {
-      if (logger) logger.debug(`[${attempt}/${retryCount}] Offline, tunggu 5 detik...`);
+      if (logger) logger.debug(`[${attempt}/${retryCount}] Offline, tunggu 5 detik...`, CONFIG.antiDown.LOG_VERBOSE);
       await delay(5000);
       continue;
     }
@@ -485,13 +457,13 @@ async function fetchWithRetry(url, opts = {}, retryCount = CONFIG.retry.MAX_RETR
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), CONFIG.API.timeout.totalRequest);
-      const res = await undiciFetch(url, { ...opts, signal: controller.signal });
+      const res = await fetcher(url, { ...opts, signal: controller.signal });
       clearTimeout(timeout);
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res;
     } catch (err) {
-      if (logger) logger.debug(`[${attempt}/${retryCount}] ${err.message}`);
+      if (logger) logger.debug(`[${attempt}/${retryCount}] ${err.message}`, CONFIG.antiDown.LOG_VERBOSE);
 
       if (attempt < retryCount) {
         await delay(delayMs);
@@ -578,7 +550,7 @@ function getOrCreateSession(ktp) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-/* 📤 POST DATA WITH RECAPTCHA V3 & ANTI-DOWN */
+/* 📤 POST DATA WITH RECAPTCHA V3 + fetchWithRetry + ANTI-DOWN */
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function postData(item, apiUrl, logger) {
@@ -591,31 +563,38 @@ async function postData(item, apiUrl, logger) {
         ? new CookieJar()
         : getOrCreateSession(item.ktp);
 
+      // cookie-aware fetch
       const localFetch = fetchCookie(undiciFetch, jar);
 
-      // 1️⃣ GET halaman awal
-      const pageRes = await localFetch(apiUrl, {
-        method: "GET",
-        headers: {
-          "User-Agent": CONFIG.headers.USER_AGENT,
-          Accept: CONFIG.headers.ACCEPT,
-          "Accept-Language": CONFIG.headers.ACCEPT_LANGUAGE,
-          "Accept-Encoding": CONFIG.headers.ACCEPT_ENCODING,
-          DNT: "1",
-          "Sec-Fetch-Dest": "document",
-          "Sec-Fetch-Mode": "navigate",
-          "Sec-Fetch-Site": "same-origin",
-          "Sec-Fetch-User": "?1",
-          Connection: "keep-alive",
-          "Upgrade-Insecure-Requests": "1",
+      // 1️⃣ GET halaman awal (dengan retry)
+      const pageRes = await fetchWithRetry(
+        apiUrl,
+        {
+          method: "GET",
+          headers: {
+            "User-Agent": CONFIG.headers.USER_AGENT,
+            Accept: CONFIG.headers.ACCEPT,
+            "Accept-Language": CONFIG.headers.ACCEPT_LANGUAGE,
+            "Accept-Encoding": CONFIG.headers.ACCEPT_ENCODING,
+            DNT: "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
+            Connection: "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+          },
         },
-      });
+        CONFIG.retry.MAX_RETRY,
+        logger,
+        localFetch
+      );
 
       const html = await pageRes.text();
 
       // Save halaman
       if (html.length <= CONFIG.performance.MAX_HTML_SIZE) {
-        logger.savePage(item.ktp, html);
+        try { logger.savePage(item.ktp, html); } catch {}
       }
 
       // Check if pendaftaran tutup
@@ -628,26 +607,24 @@ async function postData(item, apiUrl, logger) {
       if (!tokenMatch) throw new Error("_token tidak ditemukan");
       const token = tokenMatch[1];
 
-      // Extract captcha
+      // Extract captcha (opsional)
       const captchaMatch = html.match(/<div[^>]+id=["']captcha-box["'][^>]*>([\s\S]*?)<\/div>/i);
-      const captcha = captchaMatch
-        ? captchaMatch[1].replace(/[\s\r\n\t]+/g, "").trim()
-        : "";
+      const captcha = captchaMatch ? captchaMatch[1].replace(/[\s\r\n\t]+/g, "").trim() : "";
 
       // 🤖 GET reCAPTCHA v3 TOKEN
       let recaptchaToken = null;
       if (CONFIG.RECAPTCHA.ENABLED) {
-        logger.debug(`🤖 Mengambil reCAPTCHA token untuk ${item.ktp}...`);
+        logger.debug(`🤖 Mengambil reCAPTCHA token untuk ${item.ktp}...`, CONFIG.antiDown.LOG_VERBOSE);
         recaptchaToken = await getRecaptchaToken(apiUrl, CONFIG.RECAPTCHA.SITEKEY);
 
         if (!recaptchaToken) {
           logger.warn(`⚠️  reCAPTCHA token gagal untuk ${item.ktp}, lanjut tanpa token`);
         } else {
-          logger.debug(`✅ reCAPTCHA token berhasil untuk ${item.ktp}`);
+          logger.debug(`✅ reCAPTCHA token berhasil untuk ${item.ktp}`, CONFIG.antiDown.LOG_VERBOSE);
         }
       }
 
-      // Prepare payload dengan reCAPTCHA token
+      // Prepare payload
       const payload = {
         name: item.name,
         ktp: item.ktp,
@@ -658,32 +635,37 @@ async function postData(item, apiUrl, logger) {
         _token: token,
       };
 
-      // Tambah reCAPTCHA response jika ada
       if (recaptchaToken) {
         payload["g-recaptcha-response"] = recaptchaToken;
       }
 
-      logger.debug(`📤 Kirim: ${item.ktp}|${item.name} (Attempt ${attempt}/${maxAttempts})`);
+      logger.debug(`📤 Kirim: ${item.ktp}|${item.name} (Attempt ${attempt}/${maxAttempts})`, CONFIG.antiDown.LOG_VERBOSE);
 
-      // 2️⃣ POST submit
-      const postRes = await localFetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "User-Agent": CONFIG.headers.USER_AGENT,
-          Referer: apiUrl,
-          Accept: CONFIG.headers.ACCEPT,
-          "Accept-Language": CONFIG.headers.ACCEPT_LANGUAGE,
-          "Accept-Encoding": CONFIG.headers.ACCEPT_ENCODING,
-          DNT: "1",
-          "Sec-Fetch-Dest": "document",
-          "Sec-Fetch-Mode": "navigate",
-          "Sec-Fetch-Site": "same-origin",
-          Connection: "keep-alive",
-          "Upgrade-Insecure-Requests": "1",
+      // 2️⃣ POST submit (dengan retry)
+      const postRes = await fetchWithRetry(
+        apiUrl,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": CONFIG.headers.USER_AGENT,
+            Referer: apiUrl,
+            Accept: CONFIG.headers.ACCEPT,
+            "Accept-Language": CONFIG.headers.ACCEPT_LANGUAGE,
+            "Accept-Encoding": CONFIG.headers.ACCEPT_ENCODING,
+            DNT: "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            Connection: "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+          },
+          body: new URLSearchParams(payload).toString(),
         },
-        body: new URLSearchParams(payload).toString(),
-      });
+        CONFIG.retry.MAX_RETRY,
+        logger,
+        localFetch
+      );
 
       const postHtml = await postRes.text();
 
@@ -695,14 +677,14 @@ async function postData(item, apiUrl, logger) {
 
         return {
           ...payload,
-            status: "OK",
-            info: `Pendaftaran berhasil, Nomor Antrian: ${nomor}`,
-            error_message: "",
-            recaptcha_used: !!recaptchaToken,
+          status: "OK",
+          info: `Pendaftaran berhasil, Nomor Antrian: ${nomor}`,
+          error_message: "",
+          recaptcha_used: !!recaptchaToken,
         };
       }
 
-      // Check token expired
+      // Token expired scenario -> ulangi attempt luar
       if (
         postHtml.includes("419") ||
         postHtml.includes("Page Expired") ||
@@ -722,7 +704,7 @@ async function postData(item, apiUrl, logger) {
         ? errMatch[1].replace(/<[^>]+>/g, "").trim() || "Validasi gagal"
         : "Error tidak dikenal";
 
-      logger.saveErrorPage(item.ktp, postHtml);
+      try { logger.saveErrorPage(item.ktp, postHtml); } catch {}
       logger.error(item.ktp, item.name, errMsg);
 
       return {
@@ -735,10 +717,12 @@ async function postData(item, apiUrl, logger) {
     } catch (err) {
       lastError = err;
       const msg = err.message || "Unknown error";
-      logger.debug(`[Attempt ${attempt}/${maxAttempts}] ${msg}`);
+      logger.debug(`[Attempt ${attempt}/${maxAttempts}] ${msg}`, CONFIG.antiDown.LOG_VERBOSE);
 
       if (attempt === maxAttempts) {
         logger.error(item.ktp, item.name, msg);
+      } else {
+        await delay(300 + Math.floor(Math.random() * 700));
       }
     }
   }
@@ -788,7 +772,7 @@ function saveResults(data, csvFileName) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-/* 🧩 MAIN BATCH EXECUTION (WITH ANTI-DOWN) */
+/* 🧩 MAIN BATCH EXECUTION (WITH ANTI-DOWN + ADAPTIVE CONCURRENCY) */
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function runBatch(apiUrl, csvFile, logger, progressManager) {
@@ -797,6 +781,8 @@ async function runBatch(apiUrl, csvFile, logger, progressManager) {
   logger.info(`📁 CSV File: ${csvFile}`);
   logger.info(`🤖 reCAPTCHA: ${CONFIG.RECAPTCHA.ENABLED ? "ENABLED" : "DISABLED"}`);
   logger.info(`🛡️  Anti-Down: ${CONFIG.antiDown.ENABLED ? "ENABLED" : "DISABLED"}`);
+  logger.info(`🛡️  Anti-Down Wait: ${CONFIG.antiDown.WAIT_FOR_SERVER ? "ENABLED" : "DISABLED (no-wait)"}`);
+  logger.info(`⚙️  Adaptive Concurrency: ${CONFIG.adaptive.ENABLED ? "ENABLED" : "DISABLED"}`);
 
   const startTime = Date.now();
   let processedData = [];
@@ -810,11 +796,18 @@ async function runBatch(apiUrl, csvFile, logger, progressManager) {
   };
 
   try {
-    // 🆕 Wait dengan anti-down support
+    // Optional pre-wait
     if (CONFIG.antiDown.ENABLED) {
-      await waitUntilServerUp(apiUrl, logger, CONFIG.antiDown.RETRY_INTERVAL);
-    } else {
-      await waitUntilServerUp(apiUrl, logger);
+      if (CONFIG.antiDown.WAIT_FOR_SERVER) {
+        await waitUntilServerUp(apiUrl, logger, CONFIG.antiDown.RETRY_INTERVAL);
+      } else {
+        const serverUp = await isServerUp(apiUrl);
+        if (!serverUp) {
+          logger.warn("⚠️  Bypass waiting for server up (no-wait). Batch akan mencoba tetap berjalan meskipun server mungkin down. Per tiap request akan di-retry.");
+        } else {
+          logger.serverStatus("UP", "Server merespon. Lanjut.");
+        }
+      }
     }
 
     // Init browser jika reCAPTCHA enabled
@@ -834,31 +827,113 @@ async function runBatch(apiUrl, csvFile, logger, progressManager) {
     const isPeakTime =
       now.getHours() === CONFIG.concurrency.PEAK_HOUR &&
       now.getMinutes() < CONFIG.concurrency.PEAK_MINUTE_RANGE;
-    const parallelLimit = isPeakTime
+
+    const baseParallelLimit = isPeakTime
       ? CONFIG.concurrency.PEAK_LIMIT
       : CONFIG.concurrency.PARALLEL_LIMIT;
 
-    logger.info(`Memproses ${data.length} entri (parallel limit: ${parallelLimit})`);
+    // Adaptive settings
+    const adaptive = {
+      enabled: CONFIG.adaptive.ENABLED,
+      window: CONFIG.adaptive.ERROR_WINDOW,
+      threshold: CONFIG.adaptive.ERROR_THRESHOLD,
+      cooldownMs: CONFIG.adaptive.COOLDOWN_MS,
+      minConc: CONFIG.adaptive.MIN_CONCURRENCY,
+      stepDown: CONFIG.adaptive.STEP_DOWN,
+      stepUp: CONFIG.adaptive.STEP_UP,
+      maxConc: baseParallelLimit,
+    };
+
+    let currentConcurrency = baseParallelLimit;
+    let cooldownUntil = 0;
+    const recentOutcomes = []; // true=error, false=success
+
+    logger.info(`Memproses ${data.length} entri (parallel limit awal: ${baseParallelLimit})`);
 
     // Bottleneck limiter
     const limiter = new Bottleneck({
-      maxConcurrent: parallelLimit,
+      maxConcurrent: currentConcurrency,
       minTime: 100,
     });
+
+    function updateLimiterConcurrency(newConc) {
+      if (newConc === currentConcurrency) return;
+      currentConcurrency = Math.max(adaptive.minConc, Math.min(adaptive.maxConc, newConc));
+      limiter.updateSettings({ maxConcurrent: currentConcurrency });
+      logger.warn(`🔁 Adaptive concurrency: set maxConcurrent → ${currentConcurrency}`);
+    }
+
+    function recordOutcome(isError) {
+      recentOutcomes.push(isError);
+      if (recentOutcomes.length > adaptive.window) recentOutcomes.shift();
+    }
+
+    function getErrorRate() {
+      if (!recentOutcomes.length) return 0;
+      const errors = recentOutcomes.filter(Boolean).length;
+      return errors / recentOutcomes.length;
+    }
+
+    async function maybeGlobalCooldown() {
+      const now = Date.now();
+      if (now < cooldownUntil) {
+        const wait = cooldownUntil - now;
+        logger.warn(`⏳ Cooldown aktif ${Math.ceil(wait / 1000)}s...`);
+        await delay(wait);
+      }
+    }
+
+    function maybeAdjustConcurrency() {
+      if (!adaptive.enabled) return;
+
+      const rate = getErrorRate();
+      const nowTs = Date.now();
+
+      // Jika masih dalam cooldown, jangan naikkan concurrency
+      if (nowTs < cooldownUntil) {
+        // Boleh turunkan lagi jika semakin buruk
+        if (rate >= adaptive.threshold && currentConcurrency > adaptive.minConc) {
+          updateLimiterConcurrency(currentConcurrency - adaptive.stepDown);
+        }
+        return;
+      }
+
+      // Jika error-rate tinggi -> cooldown + turunkan concurrency
+      if (rate >= adaptive.threshold) {
+        cooldownUntil = nowTs + adaptive.cooldownMs;
+        if (currentConcurrency > adaptive.minConc) {
+          updateLimiterConcurrency(currentConcurrency - adaptive.stepDown);
+        }
+        logger.warn(
+          `🚦 Error-rate tinggi (${Math.round(rate * 100)}%). Cooldown ${Math.ceil(
+            adaptive.cooldownMs / 1000
+          )}s diaktifkan.`
+        );
+        return;
+      }
+
+      // Recovery: jika error-rate rendah -> naikkan concurrency pelan-pelan
+      if (rate <= Math.max(0.2, adaptive.threshold / 2) && currentConcurrency < adaptive.maxConc) {
+        updateLimiterConcurrency(currentConcurrency + adaptive.stepUp);
+      }
+    }
 
     const tasks = [];
 
     for (let i = 0; i < data.length; i++) {
       tasks.push(
         limiter.schedule(async () => {
+          await maybeGlobalCooldown();
+
           const startReq = Date.now();
           const result = await postData(data[i], apiUrl, logger);
 
           metrics.totalRequests++;
-          if (result.status === "OK") {
-            metrics.successCount++;
-          } else {
+          const isError = result.status !== "OK";
+          if (isError) {
             metrics.errorCount++;
+          } else {
+            metrics.successCount++;
           }
 
           const respTime = Date.now() - startReq;
@@ -869,7 +944,7 @@ async function runBatch(apiUrl, csvFile, logger, progressManager) {
 
           processedData.push(result);
 
-          // 🆕 Save progress
+          // Progress snapshot
           if (progressManager) {
             progressManager.save({
               timestamp: new Date().toISOString(),
@@ -880,16 +955,22 @@ async function runBatch(apiUrl, csvFile, logger, progressManager) {
             });
           }
 
+          // Periodic flush
           if (processedData.length % CONFIG.performance.MAX_PROCESSED_DATA === 0) {
             saveResults(processedData, csvFile);
             processedData = [];
           }
 
+          // Adaptive feedback
+          recordOutcome(isError);
+          maybeAdjustConcurrency();
+
           return result;
         })
       );
 
-      if ((i + 1) % parallelLimit === 0 && i + 1 < data.length) {
+      // Batch pacing
+      if ((i + 1) % currentConcurrency === 0 && i + 1 < data.length) {
         await delay(randomDelay());
       }
     }
@@ -901,7 +982,7 @@ async function runBatch(apiUrl, csvFile, logger, progressManager) {
       logger.info(`Hasil disimpan ke ${path.basename(result.csvFile)} dan ${path.basename(result.jsonFile)}`);
     }
 
-    // 🆕 Clear progress file setelah sukses
+    // Clear progress file setelah sukses
     if (progressManager) {
       progressManager.clear();
     }
@@ -910,7 +991,7 @@ async function runBatch(apiUrl, csvFile, logger, progressManager) {
   } catch (err) {
     logger.error("BATCH", "MAIN", err.message);
 
-    // 🆕 Save progress jika ada error (untuk recovery)
+    // Save progress untuk recovery
     if (progressManager) {
       progressManager.save({
         timestamp: new Date().toISOString(),
@@ -925,8 +1006,11 @@ async function runBatch(apiUrl, csvFile, logger, progressManager) {
   } finally {
     // Close browser
     if (CONFIG.RECAPTCHA.ENABLED && CONFIG.RECAPTCHA.USE_PUPPETEER) {
-      logger.info("🌐 Closing Puppeteer browser...");
-      await closeBrowser();
+      try {
+        const closingMsg = "🌐 Closing Puppeteer browser...";
+        console.log(closingMsg);
+        await closeBrowser();
+      } catch {}
     }
 
     logger.info("═══════════════════════════════════════════════════════════");
@@ -934,7 +1018,7 @@ async function runBatch(apiUrl, csvFile, logger, progressManager) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-/* ⏰ SCHEDULER */
+/* 🕒 SCHEDULER */
 // ═══════════════════════════════════════════════════════════════════════════
 
 function getDelayToTime(hour, minute = 0, second = 0) {
@@ -953,7 +1037,15 @@ function getDelayToTime(hour, minute = 0, second = 0) {
   return target - now;
 }
 
-async function scheduleBatch(apiUrl, csvFile, logger, progressManager, scheduleHour, scheduleMinute, scheduleSecond) {
+async function scheduleBatch(
+  apiUrl,
+  csvFile,
+  logger,
+  progressManager,
+  scheduleHour,
+  scheduleMinute,
+  scheduleSecond
+) {
   logger.info(
     `🕒 Batch dijadwalkan pukul ${String(scheduleHour).padStart(2, "0")}:${String(
       scheduleMinute
@@ -1014,8 +1106,86 @@ process.on("SIGINT", async () => {
 /* ▶️  MAIN ENTRY POINT */
 // ═══════════════════════════════════════════════════════════════════════════
 
+async function waitUntilServerUp(url, logger, retryDelay = 5000) {
+  let isDown = false;
+  let downStartTime = null;
+
+  while (true) {
+    const online = await isOnline();
+    if (!online) {
+      if (!isDown) {
+        isDown = true;
+        downStartTime = Date.now();
+        logger.serverStatus("DOWN", "Tidak ada koneksi internet");
+      }
+      logger.debug(
+        `⏳ Menunggu koneksi internet... (${Math.round(
+          (Date.now() - downStartTime) / 1000
+        )}s)`,
+        CONFIG.antiDown.LOG_VERBOSE
+      );
+      await delay(retryDelay);
+      continue;
+    }
+
+    const serverUp = await isServerUp(url);
+    if (serverUp) {
+      if (isDown) {
+        const downDuration = Math.round((Date.now() - downStartTime) / 1000);
+        logger.serverStatus("UP", `Server kembali online (down selama ${downDuration}s)`);
+        isDown = false;
+      }
+      return;
+    }
+
+    if (!isDown) {
+      isDown = true;
+      downStartTime = Date.now();
+      logger.serverStatus("DOWN", `Server tidak merespons (${url})`);
+    }
+
+    const downDuration = Math.round((Date.now() - downStartTime) / 1000);
+
+    if (CONFIG.antiDown.MAX_DOWN_TIME > 0 && downDuration > CONFIG.antiDown.MAX_DOWN_TIME / 1000) {
+      logger.warn(`⚠️  Server down terlalu lama (${downDuration}s), cek koneksi atau API URL`);
+      throw new Error(`Server down terlalu lama: ${downDuration}s`);
+    }
+
+    logger.debug(
+      `⏳ Menunggu server up... (${downDuration}s) - Cek ulang dalam ${retryDelay / 1000}s`,
+      CONFIG.antiDown.LOG_VERBOSE
+    );
+    await delay(retryDelay + Math.random() * 2000);
+  }
+}
+
 async function main() {
   const cliOptions = CONFIG.parseArgs();
+
+  // CLI toggles
+  if (cliOptions["no-wait"] || cliOptions["skip-wait"] || cliOptions["wait"] === "false") {
+    CONFIG.antiDown.WAIT_FOR_SERVER = false;
+  }
+
+  // Retry tuning
+  if (cliOptions["max-retries"]) CONFIG.retry.MAX_RETRY = parseInt(cliOptions["max-retries"]);
+  if (cliOptions["retry-delay"]) CONFIG.retry.RETRY_DELAY = parseInt(cliOptions["retry-delay"]);
+  if (cliOptions["max-backoff"]) CONFIG.retry.MAX_BACKOFF = parseInt(cliOptions["max-backoff"]);
+  if (cliOptions["backoff-multiplier"]) CONFIG.retry.BACKOFF_MULTIPLIER = parseFloat(cliOptions["backoff-multiplier"]);
+
+  // Concurrency tuning
+  if (cliOptions["parallel-limit"]) CONFIG.concurrency.PARALLEL_LIMIT = parseInt(cliOptions["parallel-limit"]);
+  if (cliOptions["peak-limit"]) CONFIG.concurrency.PEAK_LIMIT = parseInt(cliOptions["peak-limit"]);
+
+  // Adaptive tuning
+  if (cliOptions["error-window"]) CONFIG.adaptive.ERROR_WINDOW = parseInt(cliOptions["error-window"]);
+  if (cliOptions["error-threshold"]) CONFIG.adaptive.ERROR_THRESHOLD = parseFloat(cliOptions["error-threshold"]);
+  if (cliOptions["cooldown-ms"]) CONFIG.adaptive.COOLDOWN_MS = parseInt(cliOptions["cooldown-ms"]);
+  if (cliOptions["min-concurrency"]) CONFIG.adaptive.MIN_CONCURRENCY = parseInt(cliOptions["min-concurrency"]);
+  if (cliOptions["step-down"]) CONFIG.adaptive.STEP_DOWN = parseInt(cliOptions["step-down"]);
+  if (cliOptions["step-up"]) CONFIG.adaptive.STEP_UP = parseInt(cliOptions["step-up"]);
+  if (cliOptions["adaptive"] === "false") CONFIG.adaptive.ENABLED = false;
+
   const apiUrl = cliOptions.url || CONFIG.API.url;
   const csvFile = cliOptions.csv || CONFIG.paths.CSV_FILE;
   const mode = cliOptions.mode || "1";
@@ -1033,10 +1203,11 @@ async function main() {
     CONFIG.paths.BATCH_LOG
   );
 
-  // 🆕 Initialize progress manager
   const progressManager = new ProgressManager(CONFIG.paths.PROGRESS_FILE);
 
   checkCSVFile(csvFile, logger);
+
+  logger.info(`URL API: ${apiUrl}`);
 
   if (mode === "0") {
     logger.info("🔥 Mode: Immediate Execution");
@@ -1045,7 +1216,15 @@ async function main() {
     );
   } else {
     logger.info("🕒 Mode: Scheduled Execution");
-    await scheduleBatch(apiUrl, csvFile, logger, progressManager, scheduleHour, scheduleMinute, scheduleSecond);
+    await scheduleBatch(
+      apiUrl,
+      csvFile,
+      logger,
+      progressManager,
+      scheduleHour,
+      scheduleMinute,
+      scheduleSecond
+    );
   }
 }
 

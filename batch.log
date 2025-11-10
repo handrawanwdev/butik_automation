@@ -299,3 +299,67 @@
 [2025-11-08 16:48:12] ℹ️  INFO: File batch_data.csv valid dengan 2 baris data.
 [2025-11-08 16:48:12] ℹ️  INFO: 🕒 Mode: Scheduled Execution
 [2025-11-08 16:48:12] ℹ️  INFO: 🕒 Batch dijadwalkan pukul 07:30:00
+[2025-11-10 07:04:36] ℹ️  INFO: Cek file CSV: batch_data.csv
+[2025-11-10 07:04:36] ℹ️  INFO: Ditemukan 2 baris data.
+[2025-11-10 07:04:36] ℹ️  INFO: File batch_data.csv valid dengan 2 baris data.
+[2025-11-10 07:04:36] ℹ️  INFO: 🕒 Mode: Scheduled Execution
+[2025-11-10 07:04:36] ℹ️  INFO: 🕒 Batch dijadwalkan pukul 07:30:00
+[2025-11-10 07:05:29] ℹ️  INFO: Cek file CSV: batch_data.csv
+[2025-11-10 07:05:29] ℹ️  INFO: Ditemukan 2 baris data.
+[2025-11-10 07:05:29] ℹ️  INFO: File batch_data.csv valid dengan 2 baris data.
+[2025-11-10 07:05:29] ℹ️  INFO: URL API: https://antrisimatupang.com
+[2025-11-10 07:05:29] ℹ️  INFO: 🕒 Mode: Scheduled Execution
+[2025-11-10 07:05:29] ℹ️  INFO: 🕒 Batch dijadwalkan pukul 07:30:00
+[2025-11-10 07:05:58] ℹ️  INFO: Cek file CSV: batch_data.csv
+[2025-11-10 07:05:58] ℹ️  INFO: Ditemukan 2 baris data.
+[2025-11-10 07:05:58] ℹ️  INFO: File batch_data.csv valid dengan 2 baris data.
+[2025-11-10 07:05:58] ℹ️  INFO: URL API: https://https://antrigrahadipta.com/
+[2025-11-10 07:05:58] ℹ️  INFO: 🕒 Mode: Scheduled Execution
+[2025-11-10 07:05:58] ℹ️  INFO: 🕒 Batch dijadwalkan pukul 07:30:00
+[2025-11-10 07:06:08] ℹ️  INFO: Cek file CSV: batch_data.csv
+[2025-11-10 07:06:08] ℹ️  INFO: Ditemukan 2 baris data.
+[2025-11-10 07:06:08] ℹ️  INFO: File batch_data.csv valid dengan 2 baris data.
+[2025-11-10 07:06:08] ℹ️  INFO: URL API: https://antrigrahadipta.com/
+[2025-11-10 07:06:08] ℹ️  INFO: 🕒 Mode: Scheduled Execution
+[2025-11-10 07:06:08] ℹ️  INFO: 🕒 Batch dijadwalkan pukul 07:30:00
+[2025-11-10 07:29:59] ℹ️  INFO: ═══════════════════════════════════════════════════════════
+[2025-11-10 07:29:59] ℹ️  INFO: 🚀 Mulai batch untuk https://antrigrahadipta.com/
+[2025-11-10 07:29:59] ℹ️  INFO: 📁 CSV File: batch_data.csv
+[2025-11-10 07:29:59] ℹ️  INFO: 🤖 reCAPTCHA: ENABLED
+[2025-11-10 07:29:59] ℹ️  INFO: 🛡️  Anti-Down: ENABLED
+[2025-11-10 07:30:07] 🔴 SERVER DOWN: Server tidak merespons (https://antrigrahadipta.com/)
+[2025-11-10 08:30:13] ⚠️  WARN: ⚠️  Server down terlalu lama (3605s), cek koneksi atau API URL
+[2025-11-10 08:30:13] ❌ ERROR | BATCH|MAIN: Server down terlalu lama: 3605s
+[2025-11-10 08:30:13] ⚠️  WARN: 📊 Progress tersimpan untuk recovery. Jalankan ulang batch kapan saja.
+[2025-11-10 08:30:13] ℹ️  INFO: 🌐 Closing Puppeteer browser...
+[2025-11-10 08:30:13] ℹ️  INFO: ═══════════════════════════════════════════════════════════
+[2025-11-10 09:10:07] ℹ️  INFO: Cek file CSV: batch_data.csv
+[2025-11-10 09:10:07] ℹ️  INFO: Ditemukan 37 baris data.
+[2025-11-10 09:10:07] ℹ️  INFO: File batch_data.csv valid dengan 37 baris data.
+[2025-11-10 09:10:07] ℹ️  INFO: URL API: https://antrigrahadipta.com/
+[2025-11-10 09:10:07] ℹ️  INFO: 🕒 Mode: Scheduled Execution
+[2025-11-10 09:10:07] ℹ️  INFO: 🕒 Batch dijadwalkan pukul 07:30:00
+[2025-11-10 09:15:03] ℹ️  INFO: Cek file CSV: batch_data.csv
+[2025-11-10 09:15:03] ℹ️  INFO: Ditemukan 37 baris data.
+[2025-11-10 09:15:03] ℹ️  INFO: File batch_data.csv valid dengan 37 baris data.
+[2025-11-10 09:15:03] ℹ️  INFO: URL API: https://antrigrahadipta.com/
+[2025-11-10 09:15:03] ℹ️  INFO: 🕒 Mode: Scheduled Execution
+[2025-11-10 09:15:03] ℹ️  INFO: 🕒 Batch dijadwalkan pukul 07:30:00
+[2025-11-10 09:18:11] ℹ️  INFO: Cek file CSV: data_hari_ini.csv
+[2025-11-10 09:18:11] ❌ ERROR | CSV|PARSER: CSV tidak ditemukan: data_hari_ini.csv
+[2025-11-10 09:18:48] ℹ️  INFO: Cek file CSV: batch_data.csv
+[2025-11-10 09:18:48] ℹ️  INFO: Ditemukan 37 baris data.
+[2025-11-10 09:18:48] ℹ️  INFO: File batch_data.csv valid dengan 37 baris data.
+[2025-11-10 09:18:48] ℹ️  INFO: URL API: https://antrisimatupang.com
+[2025-11-10 09:18:48] ℹ️  INFO: 🔥 Mode: Immediate Execution
+[2025-11-10 09:18:48] ℹ️  INFO: ═══════════════════════════════════════════════════════════
+[2025-11-10 09:18:48] ℹ️  INFO: 🚀 Mulai batch untuk https://antrisimatupang.com
+[2025-11-10 09:18:48] ℹ️  INFO: 📁 CSV File: batch_data.csv
+[2025-11-10 09:18:48] ℹ️  INFO: 🤖 reCAPTCHA: ENABLED
+[2025-11-10 09:18:48] ℹ️  INFO: 🛡️  Anti-Down: ENABLED
+[2025-11-10 09:18:48] ℹ️  INFO: 🛡️  Anti-Down Wait: DISABLED (no-wait)
+[2025-11-10 09:18:48] ℹ️  INFO: ⚙️  Adaptive Concurrency: ENABLED
+[2025-11-10 09:18:56] ⚠️  WARN: ⚠️  Bypass waiting for server up (no-wait). Batch akan mencoba tetap berjalan meskipun server mungkin down. Per tiap request akan di-retry.
+[2025-11-10 09:18:56] ℹ️  INFO: 🌐 Initializing Puppeteer browser...
+[2025-11-10 09:18:56] ℹ️  INFO: ✅ Puppeteer browser ready
+[2025-11-10 09:18:56] ℹ️  INFO: Memproses 37 entri (parallel limit awal: 6)
